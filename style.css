@@ -1,0 +1,354 @@
+body {
+    background-image: url("loading-gif.gif");
+}
+canvas {
+    
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    z-index: 2;
+}
+::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+    display: none;
+}
+#loading {
+    font-size: 30px;
+    z-index: 256;
+}
+#search {
+    position: absolute;
+    top: 1px;
+    z-index: 256;
+    background-color: rgba(0,0,0,0);
+    border: 1px;
+    border-style: solid;
+    font-size: 15px;
+    color: white;
+    width: 300px;
+    visibility: hidden;
+    backdrop-filter: blur(1px);
+}
+#mercury_button {
+    position: absolute;
+    top: 2px;
+    z-index: 255;
+    font-family: Arial;
+    font-size: 15px;
+    color: white;
+    background-color: rgba(50,50,50,0.5);
+    transition-duration: 0.4s;
+    border:1px;
+    border-style:solid;
+}
+#settings_button {
+    z-index: 255;
+    visibility: visible;
+    position: absolute;
+    right: 0%;
+    top: 35%;
+    width: 30px;
+    height: 20%;
+    color: rgb(21, 21, 21);
+    font-size: 30px;
+    background-color: rgb(176, 176, 176);
+    border: none;
+    border-radius: 4px;
+    visibility: hidden;
+    text-align: center;
+    padding: 0px;
+}
+    #settings_button:hover {
+        background-color: rgb(50, 50, 50);
+        color: white;
+        transition-duration: 0.4s;
+    }
+#info_button {
+    z-index: 255;
+    visibility: visible;
+    position: absolute;
+    right: 0%;
+    top: 56%;
+    width: 30px;
+    height: 5%;
+    color: rgb(21, 21, 21);
+    font-size: 30px;
+    background-color: rgb(176, 176, 176);
+    border: none;
+    border-radius: 4px;
+    text-align: center;
+    padding: 0px;
+    visibility: hidden;
+}
+
+    #info_button:hover {
+        background-color: rgb(50, 50, 50);
+        color: white;
+        transition-duration: 0.4s;
+    }
+.time_buttons {
+    z-index: 255;
+    visibility: visible;
+    color: rgb(21, 21, 21);
+    font-size: 30px;
+    background-color: rgb(176, 176, 176);
+    border: none;
+    border-radius: 4px;
+    text-align: center;
+    padding: 0px;
+    visibility: hidden;
+}
+
+    .time_buttons:hover {
+        background-color: rgb(50, 50, 50);
+        color: white;
+        transition-duration: 0.4s;
+    }
+
+#time_forwards_button {
+    position: absolute;
+    right: 35%;
+    top: 0%;
+    width: 6%;
+    height: 3%;
+}
+#time_backwards_button {
+    position: absolute;
+    right: 58%;
+    top: 0%;
+    width: 6%;
+    height: 3%;
+}
+#time_pause_button {
+    position: absolute;
+    right: 49%;
+    top: 0%;
+    width: 8%;
+    height: 3%;
+}
+#time_switch_button {
+    position: absolute;
+    right: 42%;
+    top: 0%;
+    width: 6%;
+    height: 3%;
+}
+#help_button {
+    z-index: 255;
+    visibility: visible;
+    position: absolute;
+    right: 0%;
+    top: 62%;
+    width: 30px;
+    height: 5%;
+    color: rgb(21, 21, 21);
+    font-size: 30px;
+    background-color: rgb(176, 176, 176);
+    border: none;
+    border-radius: 4px;
+    text-align: center;
+    padding: 0px;
+    visibility: hidden;
+}
+
+    #help_button:hover {
+        background-color: rgb(50, 50, 50);
+        color: white;
+        transition-duration: 0.4s;
+    }
+#settings {
+    z-index: 0;
+    width: 95%;
+    height: 90%;
+    position: absolute;
+    top: 5%;
+    right: 30px;
+    background-color: rgba(196, 196, 196, 0.11);
+    visibility: hidden;
+    border: 1px;
+    border-style: solid;
+    border-color: azure;
+    color: white;
+    backdrop-filter: blur(15px);
+}
+#help{
+    z-index: 0;
+    width: 95%;
+    height: 90%;
+    position: absolute;
+    top: 5%;
+    right: 30px;
+    background-color: rgba(196, 196, 196, 0.11);
+    visibility: hidden;
+    border: 1px;
+    border-style: solid;
+    border-color: azure;
+    color: white;
+    backdrop-filter: blur(15px);
+    font-size:20px;
+}
+.container {
+    display: block;
+    position: relative;
+    padding-left: 35px;
+    padding-right: 10px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    font-size: 22px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+    .container input {
+        position: absolute;
+        opacity: 0;
+        cursor: pointer;
+        height: 0;
+        width: 0;
+    }
+    .container:hover input ~ .checkmark {
+        background-color: rgba(150, 150, 150, 0.75);
+    }
+
+    /* When the checkbox is checked, add a blue background */
+    .container input:checked ~ .checkmark {
+        background-color: #2196F3;
+    }
+        .container input:checked ~ .checkmark:after {
+            display: block;
+        }
+
+    /* Style the checkmark/indicator */
+    .container .checkmark:after {
+        left: 9px;
+        top: 5px;
+        width: 5px;
+        height: 10px;
+        border: solid white;
+        border-width: 0 3px 3px 0;
+        -webkit-transform: rotate(45deg);
+        -ms-transform: rotate(45deg);
+        transform: rotate(45deg);
+    }
+.checkmark {
+    position: absolute;
+    left:10px;
+    top: 0;
+    left: 0;
+    height: 25px;
+    width: 25px;
+    background-color: rgba(56, 58, 59, 0.5);
+}
+    .checkmark:after {
+        content: "";
+        position: absolute;
+        display: none;
+    }
+
+.titles {
+    color: white;
+    height: auto;
+    width: auto;
+    background-color: rgba(196, 196, 196, 0.11);
+    text-align: left;
+    position: absolute;
+    right: 8%;
+    top: 0px;
+    display: block;
+    line-height: 36px;
+    z-index: 255;
+    margin: 5px;
+    line-height: 20px;
+    visibility: hidden;
+    backdrop-filter: blur(1px);
+    mix-blend-mode: difference;
+}
+.radiv {
+    color: rgb(0, 200, 255);
+    height: auto;
+    width: 8%;
+    background-color: rgba(196, 196, 196, 0.11);
+    text-align: right;
+    position: absolute;
+    right: 0;
+    font-family: monospace;
+    top: 0px;
+    display: block;
+    line-height: 36px;
+    z-index: 255;
+    margin: 5px;
+    line-height: 20px;
+    visibility: hidden;
+    backdrop-filter: blur(1px);
+    mix-blend-mode: difference;
+}
+.WikiBox {
+    color: white;
+    height: auto;
+    max-height: 87%;
+    width: 400px;
+    background-color: rgba(196, 196, 196, 0.11);
+    text-align: left;
+    position: absolute;
+    left: 0;
+    top: 10%;
+    display: block;
+    line-height: 36px;
+    padding: 2px;
+    z-index: 0;
+    margin: 5px;
+    overflow-y: scroll;
+    line-height: 1;
+    visibility: hidden;
+    backdrop-filter: blur(15px);
+    mix-blend-mode: difference;
+}
+.WikiBox::-webkit-scrollbar {
+    display: none;
+}
+.autocomplete {
+    position: absolute;
+    left:4px;
+    top:4px;
+    display: inline-block;
+}
+.autocomplete-items {
+    position: absolute;
+    border: 1px solid #d4d4d4;
+    border-bottom: none;
+    border-top: none;
+    z-index: 99;
+    /*position the autocomplete items to be the same width as the container:*/
+    top: 20px;
+    left: 0;
+    right: 0;
+}
+
+    .autocomplete-items div {
+        padding: 10px;
+        cursor: pointer;
+        background-color: rgba(0, 0, 0, 0.5);
+        border: 1px;
+        border-color:gray;
+        border-style: solid;
+        font-size: 15px;
+        color: white;
+    }
+
+        /*when hovering an item:*/
+        .autocomplete-items div:hover {
+            background-color: rgba(187, 187, 187, 0.20);
+        }
+
+/*when navigating through the items using the arrow keys:*/
+.autocomplete-active {
+    background-color: DodgerBlue !important;
+    color: #ffffff;
+}
+
+
+  
+
+

@@ -30,6 +30,23 @@ canvas {
     visibility: hidden;
     backdrop-filter: blur(1px);
 }
+#time_slider_top_container {
+    position: absolute;
+    top: 1px;
+    left: 320px;
+    z-index: 256;
+    color: white;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+    visibility: hidden;
+}
+#time_slider_top {
+    width: 240px;
+}
+#time_pretty_top {
+    margin-left: 8px;
+    opacity: 0.8;
+}
 #mercury_button {
     position: absolute;
     top: 2px;

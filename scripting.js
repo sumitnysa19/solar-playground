@@ -24,6 +24,7 @@ var J_S;
 var target;
 var info_target;
 var time_mod = 0
+// Simulation speed in simulated seconds per real second
 var time_rate = 1;
 var fov_down = false;
 var fov_up = false;
@@ -72,6 +73,7 @@ var help_visible = false;
 var music = true;
 var target_exposure;
 var list = [];
+var _lastUpdateMs = null;
 const manager = new THREE.LoadingManager();
 const universal_loader = new THREE.TextureLoader(manager)
 const basisLoader = new BasisTextureLoader();
@@ -126,6 +128,7 @@ function onDocumentKeyDown(event) {
                     document.getElementById("labels").style.zIndex = "0";
                     document.getElementById("nums").style.zIndex = "0";
                     document.getElementById("search").style.zIndex = "0";
+                    var tstc = document.getElementById("time_slider_top_container"); if (tstc) tstc.style.zIndex = "0";
                     document.getElementById("settings_button").style.zIndex = "0";
                     document.getElementById("info_button").style.zIndex = "0";
                     document.getElementById("help_button").style.zIndex = "0";
@@ -142,6 +145,7 @@ function onDocumentKeyDown(event) {
                     document.getElementById("labels").style.zIndex = "255";
                     document.getElementById("nums").style.zIndex = "255";
                     document.getElementById("search").style.zIndex = "255";
+                    var tstc = document.getElementById("time_slider_top_container"); if (tstc) tstc.style.zIndex = "255";
                     document.getElementById("settings_button").style.zIndex = "255";
                     document.getElementById("info_button").style.zIndex = "255";
                     document.getElementById("help_button").style.zIndex = "255";
@@ -505,6 +509,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 //document.body.appendChild(VRButton.createButton(renderer));
 //renderer.xr.enabled = true;
 
+// Initialize time controls UI once controls/buttons are attached
+initTimeControls();
+
 function animate() {
     if (post_processing == true) {
         composer.render();
@@ -550,6 +557,7 @@ basisLoader.load('textures/sky.basis', function (texture) {
     document.getElementById("labels").style.visibility = "visible";
     document.getElementById("nums").style.visibility = "visible";
     document.getElementById("search").style.visibility = "visible";
+    var tstc = document.getElementById("time_slider_top_container"); if (tstc) tstc.style.visibility = "visible";
     document.getElementById("info").style.visibility = "visible";
     document.getElementById("settings").style.visibility = "visible";
     document.getElementById("help").style.visibility = "visible";
@@ -1115,6 +1123,64 @@ function pointer(shape) {
     var PointMaterial = new THREE.PointsMaterial({ size: 1, sizeAttenuation: false, vertexColors: THREE.VertexColors });
     return new THREE.Points(shape, PointMaterial);
 }
+// Time rate controls (slider + unit + reverse)
+function _formatTimeRateDisplay(rate) {
+    const abs = Math.abs(rate);
+    const sign = rate < 0 ? '-' : '';
+    let unit = 's';
+    let value = abs;
+    if (abs >= 86400) { unit = 'd'; value = abs / 86400; }
+    else if (abs >= 3600) { unit = 'h'; value = abs / 3600; }
+    else if (abs >= 60) { unit = 'min'; value = abs / 60; }
+    return `${sign}${value.toFixed(1)} ${unit}/s`;
+}
+
+function initTimeControls() {
+    const slider = document.getElementById('time_slider');
+    const val = document.getElementById('time_value');
+    const unit = document.getElementById('time_unit');
+    const rev = document.getElementById('time_reverse');
+    const pretty = document.getElementById('time_pretty');
+    if (!slider || !val || !unit || !rev || !pretty) return;
+
+    const unitMax = { '1': 600, '60': 120, '3600': 48, '86400': 365 };
+
+    function apply() {
+        const u = parseFloat(unit.value);
+        const number = Math.max(0, parseFloat(val.value) || 0);
+        const sign = rev.checked ? -1 : 1;
+        time_rate = sign * number * u;
+        pretty.textContent = _formatTimeRateDisplay(time_rate);
+        const tr = document.getElementById('time_rate');
+        if (tr) tr.innerHTML = Math.floor(time_rate);
+    }
+
+    function syncSliderFromValue() {
+        const max = unitMax[unit.value] || 600;
+        slider.max = String(max);
+        const number = Math.max(0, parseFloat(val.value) || 0);
+        slider.value = String(Math.min(number, max));
+    }
+
+    function syncValueFromSlider() {
+        val.value = slider.value;
+    }
+
+    // Initialize from current time_rate
+    let abs = Math.abs(time_rate);
+    rev.checked = time_rate < 0;
+    if (abs >= 86400) { unit.value = '86400'; val.value = (abs / 86400).toFixed(1); }
+    else if (abs >= 3600) { unit.value = '3600'; val.value = (abs / 3600).toFixed(1); }
+    else if (abs >= 60) { unit.value = '60'; val.value = (abs / 60).toFixed(1); }
+    else { unit.value = '1'; val.value = abs.toFixed(1); }
+    syncSliderFromValue();
+    apply();
+
+    slider.addEventListener('input', () => { syncValueFromSlider(); apply(); });
+    val.addEventListener('input', () => { syncSliderFromValue(); apply(); });
+    unit.addEventListener('change', () => { syncSliderFromValue(); apply(); });
+    rev.addEventListener('change', () => { apply(); });
+}
 pack();
 packSatalites();
 PointCloud = pointer(MegaMesh);
@@ -1152,12 +1218,15 @@ function onTimerTick() { update(); }
 function update() {
     var d = new Date();
     var time = (((d.getTime() / 86400000) + 2440587.5 + (37 + 32.184) / 86400) - 2451545); //julian days since J2000
+    var nowMs = d.getTime();
+    if (_lastUpdateMs === null) { _lastUpdateMs = nowMs; }
+    var dt = (nowMs - _lastUpdateMs) / 1000; // real seconds since last update
+    _lastUpdateMs = nowMs;
+
     if (paused == false) {
-        time_mod = time_mod + (2.31481481e-7 * (time_rate - 1));
-        J_D = time + time_mod;
-    }
-    else {
-        time_mod = time_mod;
+        // Advance simulation: base real time + accelerated offset in days
+        // time_rate represents simulated seconds per real second
+        time_mod = time_mod + ((time_rate - 1) * dt) / 86400;
     }
     J_D = time + time_mod;
     J_C = J_D / 36525;//centuries
@@ -1286,3 +1355,47 @@ for (var i = 0; i < continuum.length; i++) {
 autocomplete(document.getElementById("search"), list);
 animate();
 export { meshes, universal_loader, target, scene, Castable, major_castable, J_S, camera, labels_visible, moons_visible, planets_visible, basisLoader, time_rate, paused, occultation};
+
+// Top time slider control: apply on release, preview while dragging
+(function initTimeSliderTop(){
+    const cont = document.getElementById('time_slider_top_container');
+    const slider = document.getElementById('time_slider_top');
+    const label = document.getElementById('time_pretty_top');
+    if (!cont || !slider || !label) return;
+
+    // Discrete mapping across seconds ? minutes ? hours ? days
+    const map = [
+        { name:'1 s/s',    rate: 1 },
+        { name:'10 s/s',   rate: 10 },
+        { name:'1 min/s',  rate: 60 },
+        { name:'10 min/s', rate: 600 },
+        { name:'1 h/s',    rate: 3600 },
+        { name:'6 h/s',    rate: 21600 },
+        { name:'12 h/s',   rate: 43200 },
+        { name:'1 d/s',    rate: 86400 },
+        { name:'7 d/s',    rate: 604800 },
+        { name:'30 d/s',   rate: 2592000 },
+        { name:'365 d/s',  rate: 31557600 }
+    ];
+
+    function nearestIndexFromRate(r){
+        const abs = Math.abs(r);
+        let idx = 0, best = Infinity;
+        for (let i=0;i<map.length;i++){ const d=Math.abs(map[i].rate-abs); if (d<best){best=d; idx=i;} }
+        return idx;
+    }
+    function setLabel(idx){ label.textContent = map[idx].name; }
+    function applyFromSlider(){ const idx = parseInt(slider.value)||0; const sign = (time_rate<0)?-1:1; time_rate = sign * map[idx].rate; setLabel(idx); const tr = document.getElementById('time_rate'); if (tr) tr.innerHTML = Math.floor(time_rate); }
+    function preview(){ const idx = parseInt(slider.value)||0; setLabel(idx); }
+
+    // Initialize from current time_rate
+    slider.value = String(nearestIndexFromRate(time_rate));
+    setLabel(parseInt(slider.value));
+
+    // Preview while dragging
+    slider.addEventListener('input', preview);
+    // Apply on release/commit
+    slider.addEventListener('change', applyFromSlider);
+    slider.addEventListener('mouseup', applyFromSlider);
+    slider.addEventListener('touchend', applyFromSlider);
+})();

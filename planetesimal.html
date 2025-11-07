@@ -8,6 +8,10 @@
         <div class="autocomplete" style="width:300px;" id="searchdiv">
             <input id="search" type="text" name="myCountry" placeholder="search object">
         </div>
+        <div id="time_slider_top_container">
+            <input type="range" id="time_slider_top" min="0" max="10" step="1" value="0">
+            <span id="time_pretty_top"></span>
+        </div>
     </form>
 </body>
 <h1>LOADING</h1>
@@ -169,5 +173,22 @@
         <input type="checkbox" checked="" id="music">
         <span class="checkmark"></span>
     </label>
+    <div class="container" style="padding-top:8px;padding-bottom:8px;">
+        <div style="font-weight:600;margin-bottom:6px;">Time rate</div>
+        <div id="time_rate_control">
+            <input type="range" id="time_slider" min="0" max="600" step="1" value="1" style="width:200px;">
+            <input type="number" id="time_value" min="0" step="0.1" value="1" style="width:80px;margin-left:8px;">
+            <select id="time_unit" style="margin-left:8px;">
+                <option value="1">seconds</option>
+                <option value="60">minutes</option>
+                <option value="3600">hours</option>
+                <option value="86400">days</option>
+            </select>
+            <label style="margin-left:10px;">
+                <input type="checkbox" id="time_reverse"> reverse
+            </label>
+            <span id="time_pretty" style="margin-left:10px;"></span>
+        </div>
+    </div>
 </div>
 <script src="scripting.js" type="module"></script>

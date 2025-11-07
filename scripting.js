@@ -12,6 +12,7 @@ import { satalites } from './datamed.js';
 import * as THREE from './module.js';
 import { vertexShader, fragmentShader, sphereVertShader, sphereFragShader }from './shaders.js';
 import { catalog } from './stars.js';
+import { constellationLines } from './constellations.js';
 import { moon } from "./planet.js";
 import { minor_moon } from "./moon.js";
 import { stellar } from "./stellar.js";
@@ -70,6 +71,9 @@ var locked = false;
 var high_graphics = true;
 var settings_visible = false;
 var help_visible = false;
+var LY_UNIT = 1e6; // scene units per light-year
+var maxStarsRadius = 0;
+var stars3DScale = 1;
 var music = true;
 var target_exposure;
 var list = [];
@@ -525,7 +529,8 @@ function animate() {
     sky.position.copy(camera.position);
     if (sim_run == true) {
         hyper();
-        controls.enabled = true
+                updateConstellationLabels();
+                controls.enabled = true
     }
     else {
         controls.enabled = false
@@ -536,9 +541,9 @@ scene.add(amb);
 
 //camera controls
 controls.rotateSpeed = 0.5;
-controls.zoomSpeed = 4;
+controls.zoomSpeed = 2;
 controls.minDistance = 0.03;
-controls.maxDistance = 5e6;
+controls.maxDistance = 8e7;
 controls.enableDamping = true;
 controls.dampingFactor = 0.1;
 // Use default TrackballControls mouse mapping: LEFT=ROTATE, MIDDLE=ZOOM, RIGHT=PAN
@@ -549,11 +554,11 @@ controls.mouseButtons = {
 }
 
 var skygeo = new THREE.SphereGeometry(5e7, 20, 20);
-const sky = new THREE.Mesh(skygeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+const sky = new THREE.Mesh(skygeo, new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide, depthWrite: false }));
 basisLoader.load('textures/sky.basis', function (texture) {
     sky.material.map = texture;
     sky.material.side = THREE.BackSide;
-    scene.add(sky);
+    sky.material.depthWrite = false; sky.material.needsUpdate = true; scene.add(sky);
     document.getElementById("labels").style.visibility = "visible";
     document.getElementById("nums").style.visibility = "visible";
     document.getElementById("search").style.visibility = "visible";
@@ -741,6 +746,280 @@ snipe_mat.sizeAttenuation = false;
 const snipe = new THREE.Sprite(snipe_mat);
 snipe.scale.set(0.1, 0.1, 0.1);
 scene.add(snipe);
+// Constellations rendering (fixed in world so you can fly past)
+const CONSTELLATION_RADIUS = 4e7;
+const CONSTELLATION_TILT = 0.40904531187; // obliquity
+function raDecToVector(raDeg, decDeg, radius) {
+    // RA 0�360�, Dec in degrees
+    const ra = DegToRad(raDeg);
+    const dec = DegToRad(decDeg);
+    const x = radius * Math.cos(ra) * Math.cos(dec);
+    const y = radius * Math.sin(ra) * Math.cos(dec);
+    const z = radius * Math.sin(dec);
+    // rotate from equatorial to ecliptic to match scene convention
+    const y2 = y * Math.cos(CONSTELLATION_TILT) - z * Math.sin(CONSTELLATION_TILT);
+    const z2 = y * Math.sin(CONSTELLATION_TILT) + z * Math.cos(CONSTELLATION_TILT);
+    return new THREE.Vector3(x, z2, y2);
+}
+function buildConstellations() {
+    const positions = [];
+    for (const c of constellationLines) {
+        for (const seg of c.lines) {
+            const a = seg[0], b = seg[1];
+            const va = raDecToVector(a[0], a[1], CONSTELLATION_RADIUS);
+            const vb = raDecToVector(b[0], b[1], CONSTELLATION_RADIUS);
+            positions.push(va.x, va.y, va.z, vb.x, vb.y, vb.z);
+        }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const m = new THREE.LineBasicMaterial({ color: 0x88bbff, transparent: true, opacity: 0.5, depthWrite: false });
+    const lines = new THREE.LineSegments(g, m);
+    lines.renderOrder = 1;
+    return lines;
+}
+const constellationGroup = buildConstellations();
+scene.add(constellationGroup);
+constellationGroup.visible = true;
+constellationGroup.frustumCulled = false;
+// Replace sample with full dataset from assets/constellations.json
+(async function loadConstellationsFull(){
+    try {
+        const res = await fetch('assets/constellations.json', { cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const positions = [];
+        for (const c of data) {
+            if (!c.lines) continue;
+            for (const seg of c.lines) {
+                const a = seg[0], b = seg[1];
+                const va = raDecToVector(a[0], a[1], CONSTELLATION_RADIUS);
+                const vb = raDecToVector(b[0], b[1], CONSTELLATION_RADIUS);
+                positions.push(va.x, va.y, va.z, vb.x, vb.y, vb.z);
+            }
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        if (constellationGroup.geometry) constellationGroup.geometry.dispose();
+        constellationGroup.geometry = g;
+        constellationGroup.visible = true;
+    } catch (e) { console.warn('constellations.json load failed', e); }
+})();
+// Labels for constellations
+const constellationLabels = new THREE.Group();
+scene.add(constellationLabels);
+function _makeTextSprite(text) {
+    const canvas = document.createElement('canvas');
+    const size = 256; canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.font = '28px Arial';
+    ctx.fillStyle = 'white';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(text, size/2, size/2);
+    const tex = new THREE.Texture(canvas); tex.needsUpdate = true;
+    const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
+    const spr = new THREE.Sprite(mat); spr.scale.set(0.8, 0.8, 0.8);
+    return spr;
+}
+let _constellationData = constellationLines;
+function rebuildConstellationLabels() {
+    while (constellationLabels.children.length) { const c=constellationLabels.children.pop(); if (c.material && c.material.map) c.material.map.dispose(); if (c.material) c.material.dispose(); }
+    for (const c of _constellationData) {
+        if (!c.lines || !c.name) continue;
+        const pts = [];
+        for (const seg of c.lines) { pts.push(seg[0], seg[1]); }
+        // Average cartesian on unit sphere to find label direction
+        let sx=0, sy=0, sz=0;
+        for (const p of pts) {
+            const ra = DegToRad(p[0]); const dec = DegToRad(p[1]);
+            const x = Math.cos(ra)*Math.cos(dec);
+            const y = Math.sin(ra)*Math.cos(dec);
+            const z = Math.sin(dec);
+            // Apply obliquity so labels align with line transform
+            const y2 = y * Math.cos(CONSTELLATION_TILT) - z * Math.sin(CONSTELLATION_TILT);
+            const z2 = y * Math.sin(CONSTELLATION_TILT) + z * Math.cos(CONSTELLATION_TILT);
+            sx += x; sy += y2; sz += z2;
+        }
+        const len = Math.sqrt(sx*sx+sy*sy+sz*sz) || 1;
+        const dir = new THREE.Vector3(sx/len, sy/len, sz/len);
+        const pos = dir.multiplyScalar(CONSTELLATION_RADIUS * 1.01);
+        const label = _makeTextSprite(c.name);
+        label.position.copy(pos);
+        label.renderOrder = 2;
+        constellationLabels.add(label);
+    }
+}
+rebuildConstellationLabels();
+function updateConstellationLabels(){
+    if (!constellationLabels || !constellationLabels.children) return;
+    const R = CONSTELLATION_RADIUS;
+    for (let i=0;i<constellationLabels.children.length;i++){
+        const spr = constellationLabels.children[i];
+        const d = camera.position.distanceTo(spr.position);
+        const t = Math.min(Math.max(d / R, 0.2), 3.0); // scale factor
+        const s = 0.6 * t;
+        spr.scale.set(s, s, s);
+        if (spr.material){
+            const op = Math.min(Math.max((d - 0.15*R) / (0.7*R), 0.05), 1.0);
+            spr.material.opacity = op;
+            spr.material.transparent = true;
+            spr.material.needsUpdate = true;
+        }
+    }
+}
+
+// Hook up UI toggles
+(function(){
+    try {
+        var t=document.getElementById('constellations'); if (t){ constellationGroup.visible = t.checked; t.addEventListener('change', function(){ constellationGroup.visible = t.checked; }); }
+        var tl=document.getElementById('const_labels'); if (tl){ constellationLabels.visible = tl.checked; tl.addEventListener('change', function(){ constellationLabels.visible = tl.checked; }); }
+    } catch(e){}
+})();
+
+// Attempt to load boundaries from assets/constellation_boundaries.json
+let constellationBoundaryGroup = null;
+(async function loadConstellationBoundaries(){
+    try {
+        const res = await fetch('assets/constellation_boundaries.json', { cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json(); _stars3DData = data; const positions=[];
+        for (const poly of data) {
+            const pts = poly.boundary || poly.lines || [];
+            for (let i=1;i<pts.length;i++) {
+                const a=pts[i-1], b=pts[i];
+                const va = raDecToVector(a[0], a[1], CONSTELLATION_RADIUS);
+                const vb = raDecToVector(b[0], b[1], CONSTELLATION_RADIUS);
+                positions.push(va.x,va.y,va.z,vb.x,vb.y,vb.z);
+            }
+        }
+        const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+        const m = new THREE.LineBasicMaterial({ color: 0x66ffaa, transparent:true, opacity:0.35, depthWrite:false });
+        constellationBoundaryGroup=new THREE.LineSegments(g,m);
+        scene.add(constellationBoundaryGroup);
+constellationBoundaryGroup.visible = true;
+        const cb=document.getElementById('const_boundaries'); if (cb){ constellationBoundaryGroup.visible = cb.checked; cb.addEventListener('change', function(){ if (constellationBoundaryGroup) constellationBoundaryGroup.visible = cb.checked; }); }
+    } catch(e){}
+// 3D Stars (HYG) layer
+const stars3DGroup = new THREE.Group();
+stars3DGroup.visible = false;
+scene.add(stars3DGroup);
+var constellationStars3DGroup = new THREE.Group();
+constellationStars3DGroup.visible = true;
+scene.add(constellationStars3DGroup);
+let _stars3DBaseLoaded = false;
+let _stars3DData = null;
+
+function _hygColor(ci) {
+    // Approximate color from B-V color index (ci). Fallback to white.
+    if (ci === undefined || isNaN(ci)) return new THREE.Color(1,1,1);
+    // Simple mapping: blue (-0.3)->(0.6,0.7,1), yellow (0.65)->(1,1,0.6), red (1.5)->(1,0.7,0.6)
+    const t = Math.max(-0.3, Math.min(1.5, ci));
+    if (t < 0.65) {
+        const k = (t + 0.3) / (0.95);
+        return new THREE.Color(0.6 + 0.4*k, 0.7 + 0.3*k, 1);
+    } else {
+        const k = (t - 0.65) / (0.85);
+        return new THREE.Color(1, 1 - 0.3*k, 0.6 + 0.1*k);
+    }
+}
+
+async function loadStars3D() {
+    try {
+        const res = await fetch('assets/stars3d.json', { cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json(); _stars3DData = data; const N = data.length;
+        const positions = new Float32Array(N * 3);
+        const colors = new Float32Array(N * 3);
+        const sizes = new Float32Array(N);
+        const TILT = CONSTELLATION_TILT;
+        // Use same axis mapping as constellations
+        for (let i=0;i<N;i++){
+            const s = data[i];
+            const ra = DegToRad((s.ra||0) * 15);
+            const dec = DegToRad(s.dec);
+            // distance in light-years; scale to scene units
+            const ly = s.ly;
+            const R = ly * LY_UNIT; // 1 ly ~ 1e6 scene units (tweakable)
+            const x = R * Math.cos(ra) * Math.cos(dec);
+            const y = R * Math.sin(ra) * Math.cos(dec);
+            const z = R * Math.sin(dec);
+            const y2 = y * Math.cos(TILT) - z * Math.sin(TILT);
+            const z2 = y * Math.sin(TILT) + z * Math.cos(TILT);
+            const idx = 3*i;
+            positions[idx] = x; positions[idx+1] = z2; positions[idx+2] = y2;
+            const c = _hygColor(s.ci);
+            colors[idx] = c.r; colors[idx+1] = c.g; colors[idx+2] = c.b;
+            sizes[i] = Math.max(0.5, 3.5 - (s.mag||5)/2);
+        }
+        if (R>maxStarsRadius) maxStarsRadius = R;
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+        const mat = new THREE.PointsMaterial({ size: 3.5, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 1.0, depthWrite: false, blending: THREE.AdditiveBlending });
+        const pts = new THREE.Points(geo, mat); pts.frustumCulled = false; stars3DGroup.add(pts); _stars3DBaseLoaded = true;
+    } catch(e) { /* ignore if file missing */ }
+}
+
+(function initStars3DUI(){
+    const cb = document.getElementById('stars3d');
+    const slider = document.getElementById('parallax_slider');
+    const label = document.getElementById('parallax_value');
+    if (cb) {
+        cb.addEventListener('change', () => {
+            stars3DGroup.visible = cb.checked;
+            if (cb.checked && !_stars3DBaseLoaded) loadStars3D();
+        });
+    }
+    if (slider && label) {
+        const apply = () => {
+            const f = parseFloat(slider.value)||1; stars3DScale = f; stars3DGroup.scale.set(f,f,f); if (typeof constellationLines3DGroup !== 'undefined' && constellationLines3DGroup) { constellationLines3DGroup.scale.set(f,f,f); } label.textContent = f.toFixed(1) + "x";
+        };
+        slider.addEventListener('input', apply);
+        slider.addEventListener('change', apply);
+        apply();
+    }
+})();
+})();
+
+// If full dataset loads, rebuild labels against it
+(async function waitFullSwap(){
+    try {
+        const res = await fetch('assets/constellations.json', { cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json(); _stars3DData = data; _constellationData = data; rebuildConstellationLabels();
+    } catch(e){}
+})();
+
+// Try to replace sample with full dataset from assets/constellations.json, if present
+function linesGeometryFromData(dataset) {
+    const positions = [];
+    for (const c of dataset) {
+        if (!c.lines) continue;
+        for (const seg of c.lines) {
+            const a = seg[0], b = seg[1];
+            const va = raDecToVector(a[0], a[1], CONSTELLATION_RADIUS);
+            const vb = raDecToVector(b[0], b[1], CONSTELLATION_RADIUS);
+            positions.push(va.x, va.y, va.z, vb.x, vb.y, vb.z);
+        }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    return g;
+}
+(async function loadConstellationsFull(){
+    try {
+        const res = await fetch('assets/constellations.json', { cache: 'no-cache' });
+        if (!res.ok) return;
+        const data = await res.json(); _stars3DData = data; const newGeom = linesGeometryFromData(data);
+        if (constellationGroup.geometry) constellationGroup.geometry.dispose();
+        constellationGroup.geometry = newGeom;
+        constellationGroup.visible = true;
+    } catch (e) {
+        // keep sample if not present
+    }
+})();
+scene.add(constellationGroup);
+constellationGroup.visible = true;
 //=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 var center = new THREE.Vector3(0, 0, 0);
 target = bodies.sol;
@@ -794,14 +1073,18 @@ function hyper() {
     }
     if (fov_down == true && camera.fov > 5) {
         camera.fov = camera.fov * 0.98;
-        camera.near = camera.near / 0.98
+        camera.near = 0.02;
+    if (maxStarsRadius>0){ farTarget = Math.max(farTarget, maxStarsRadius * stars3DScale * 1.5); }
+    camera.far = 1e10;
         camera.updateProjectionMatrix();
         document.getElementById("fov").innerHTML = camera.fov.toFixed(1) + "&deg";
         controls.rotateSpeed = controls.rotateSpeed * 0.99;
     }
     if (fov_up == true && camera.fov < 110) {
         camera.fov = camera.fov * 1.02;
-        camera.near = camera.near / 1.02
+        camera.near = 0.02;
+    if (maxStarsRadius>0){ farTarget = Math.max(farTarget, maxStarsRadius * stars3DScale * 1.5); }
+    camera.far = 1e10;
         camera.updateProjectionMatrix();
         document.getElementById("fov").innerHTML = camera.fov.toFixed(1) + "&deg";
         controls.rotateSpeed = controls.rotateSpeed * 1.01;
@@ -842,7 +1125,14 @@ function hyper() {
             //asteroid.rotateY(time_rate * 0.000005)
         }
     }
-    camera.near = (camera.position.distanceTo(target.Position) / 40);
+    const __d = camera.position.distanceTo(target.Position);
+    const __nearestConst = Math.abs(__d - CONSTELLATION_RADIUS);
+    camera.near = 0.02;
+    // Expand far plane to include 3D stars extent
+    var farTarget = Math.max(1e8, (camera.position.distanceTo(target.Position) + CONSTELLATION_RADIUS * 1.2));
+    if (maxStarsRadius>0){ farTarget = Math.max(farTarget, maxStarsRadius * stars3DScale * 1.5); }
+    camera.far = 1e10;
+    camera.far = 1e10;
     camera.updateProjectionMatrix();
     controls.target = center;
     var orientation = new THREE.Vector3(0, 0, 0);
@@ -882,6 +1172,7 @@ function hyper() {
         PointCloud.material.needsUpdate = true
     }
     moons.forEach(moon => moon.SetPosition());
+    updateConstellationLabels();
 
     document.getElementById("name").innerHTML = info_target.name
     document.getElementById("x").innerHTML = comma((info_target.Position.x * 10000).toFixed(0)) + "KM";
@@ -912,6 +1203,7 @@ function hyper() {
     document.getElementById("camx").innerHTML = camera.position.x.toFixed(0);
     document.getElementById("camy").innerHTML = camera.position.y.toFixed(0);
     document.getElementById("camz").innerHTML = camera.position.z.toFixed(0);
+    // Adaptive zoom speed: increase with distance (in ly)
 }
 
 
@@ -1399,3 +1691,206 @@ export { meshes, universal_loader, target, scene, Castable, major_castable, J_S,
     slider.addEventListener('mouseup', applyFromSlider);
     slider.addEventListener('touchend', applyFromSlider);
 })();
+
+
+
+// Constellations toggle hookup
+(function(){ try { var t=document.getElementById('constellations'); if (t){ constellationGroup.visible = t.checked; t.addEventListener('change', function(){ constellationGroup.visible = t.checked; }); } } catch(e){} })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// 3D Constellation lines using HYG star positions
+var constellationLines3DGroup = new THREE.Group();
+constellationLines3DGroup.visible = false;
+scene.add(constellationLines3DGroup);
+
+function _angSepDeg(raDeg1, decDeg1, raDeg2, decDeg2){
+    const ra1 = DegToRad(raDeg1), dec1 = DegToRad(decDeg1);
+    const ra2 = DegToRad(raDeg2), dec2 = DegToRad(decDeg2);
+    const s = Math.sin(dec1)*Math.sin(dec2) + Math.cos(dec1)*Math.cos(dec2)*Math.cos(ra1-ra2);
+    const ang = Math.acos(Math.max(-1, Math.min(1, s)));
+    return ang * 57.29577951308232; // rad->deg
+}
+
+function buildConstellationLines3D(stars, lines, lyScale){
+    // stars: array of { ra(hours), dec(deg), ly }
+    // lines: array of { lines: [ [[ra,dec],[ra,dec]], ... ] }
+    const starList = stars.map(s=>({ raDeg:(s.ra||0)*15, decDeg:s.dec||0, ly:s.ly||0 }));
+    const positions = [];
+    const TILT = CONSTELLATION_TILT;
+    function posFrom(radeg, decdeg, ly){
+        const ra = DegToRad(radeg);
+        const dec = DegToRad(decdeg);
+        const R = ly * LY_UNIT;
+        const x = R * Math.cos(ra) * Math.cos(dec);
+        const y = R * Math.sin(ra) * Math.cos(dec);
+        const z = R * Math.sin(dec);
+        const y2 = y * Math.cos(TILT) - z * Math.sin(TILT);
+        const z2 = y * Math.sin(TILT) + z * Math.cos(TILT);
+        return new THREE.Vector3(x, z2, y2);
+    }
+    function nearestStar(radeg, decdeg){
+        let best = -1, bestAng = 1e9;
+        for (let i=0;i<starList.length;i++){
+            const s = starList[i];
+            const ang = _angSepDeg(radeg, decdeg, s.raDeg, s.decDeg);
+            if (ang < bestAng){ bestAng = ang; best = i; }
+        }
+        return (bestAng <= 1.0) ? starList[best] : null; // 1 degree tolerance
+    }
+    for (const c of lines){
+        if (!c.lines) continue;
+        for (const seg of c.lines){
+            const a = seg[0], b = seg[1];
+            const sa = nearestStar(a[0], a[1]);
+            const sb = nearestStar(b[0], b[1]);
+            if (!sa || !sb) continue;
+            const va = posFrom(sa.raDeg, sa.decDeg, sa.ly);
+            const vb = posFrom(sb.raDeg, sb.decDeg, sb.ly);
+            positions.push(va.x,va.y,va.z, vb.x,vb.y,vb.z);
+        }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+    const m = new THREE.LineBasicMaterial({ color: 0xffaa66, transparent:true, opacity:0.7, depthWrite:false });
+    const lines3d = new THREE.LineSegments(g,m);
+    lines3d.frustumCulled = false;
+    return lines3d;
+}
+
+async function ensureConstellationLines3D(){
+    if (!_stars3DBaseLoaded) await loadStars3D();
+    try {
+        const res = await fetch('assets/stars3d.json', { cache: 'no-cache' }); if (!res.ok) return;
+        const stars = await res.json();
+        const lyScale = LY_UNIT; // keep in sync with loadStars3D
+        const lines3d = buildConstellationLines3D(stars, _constellationData || constellationLines, lyScale);
+        while (constellationLines3DGroup.children.length) constellationLines3DGroup.remove(constellationLines3DGroup.children[0]);
+        constellationLines3DGroup.add(lines3d);
+    } catch(e){}
+}
+
+(function initConstellation3DToggle(){ /* disabled */ })();
+
+
+
+
+
+
+
+
+
+function buildConstellationStars3D(stars, lines, lyScale){
+    const TILT = CONSTELLATION_TILT;
+    function posFrom(radeg, decdeg, ly){
+        const ra = DegToRad(radeg);
+        const dec = DegToRad(decdeg);
+        const R = ly * lyScale;
+        const x = R * Math.cos(ra) * Math.cos(dec);
+        const y = R * Math.sin(ra) * Math.cos(dec);
+        const z = R * Math.sin(dec);
+        const y2 = y * Math.cos(TILT) - z * Math.sin(TILT);
+        const z2 = y * Math.sin(TILT) + z * Math.cos(TILT);
+        return new THREE.Vector3(x, z2, y2);
+    }
+    function angSepDeg(raDeg1, decDeg1, raDeg2, decDeg2){
+        const ra1 = DegToRad(raDeg1), dec1 = DegToRad(decDeg1);
+        const ra2 = DegToRad(raDeg2), dec2 = DegToRad(decDeg2);
+        const s = Math.sin(dec1)*Math.sin(dec2) + Math.cos(dec1)*Math.cos(dec2)*Math.cos(ra1-ra2);
+        const ang = Math.acos(Math.max(-1, Math.min(1, s)));
+        return ang * 57.29577951308232;
+    }
+    const starList = stars.map(s=>({ raDeg:(s.ra||0)*15, decDeg:s.dec||0, ly:s.ly||0 }));
+    const picked = new Set();
+    for (const c of (lines||[])){
+        if (!c.lines) continue;
+        for (const seg of c.lines){
+            const a=seg[0], b=seg[1];
+            let bestA=-1, bestB=-1, bestAngA=1e9, bestAngB=1e9;
+            for (let i=0;i<starList.length;i++){
+                const s=starList[i];
+                const angA = angSepDeg(a[0],a[1],s.raDeg,s.decDeg);
+                if (angA < bestAngA){ bestAngA=angA; bestA=i; }
+                const angB = angSepDeg(b[0],b[1],s.raDeg,s.decDeg);
+                if (angB < bestAngB){ bestAngB=angB; bestB=i; }
+            }
+            if (bestAngA<=1.0 && bestA>=0) picked.add(bestA);
+            if (bestAngB<=1.0 && bestB>=0) picked.add(bestB);
+        }
+    }
+    const positions=[];
+    picked.forEach(i=>{
+        const s = starList[i];
+        const v = posFrom(s.raDeg, s.decDeg, s.ly);
+        positions.push(v.x,v.y,v.z);
+    });
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+    const mat = new THREE.PointsMaterial({ color: 0xFFD84D, size: 8.0, sizeAttenuation: false, transparent: true, opacity: 1.0, depthWrite: false, blending: THREE.AdditiveBlending });
+    const pts = new THREE.Points(geo, mat);
+    pts.frustumCulled = false;
+    pts.renderOrder = 5;
+    return pts;
+}
+
+(async function refreshConstellationStars3D(){ try { const res = await fetch('assets/stars3d.json', { cache: 'no-cache' }); if (!res.ok) return; const stars = await res.json(); const lyScale = LY_UNIT; const pts = buildConstellationStars3D(stars, (_constellationData || constellationLines), lyScale); while (constellationStars3DGroup.children.length) constellationStars3DGroup.remove(constellationStars3DGroup.children[0]); constellationStars3DGroup.add(pts); } catch(e){} })();
+
+
+
+// Default-enable 3D stars on load
+(function defaultEnable3DStars(){ /* disabled */ })();
+
+// Reset sky/space layers to sane defaults
+function ResetSkyLayers(){
+    try {
+        const cb2d = document.getElementById('constellations');
+        const cbBound = document.getElementById('const_boundaries');
+        const cb3dStars = document.getElementById('stars3d');
+        const cb3dLines = document.getElementById('constellations_3d');
+        if (cb2d) { cb2d.checked = true; if (typeof constellationGroup !== 'undefined' && constellationGroup) constellationGroup.visible = true; }
+        if (cbBound) { cbBound.checked = true; if (typeof constellationBoundaryGroup !== 'undefined' && constellationBoundaryGroup) constellationBoundaryGroup.visible = true; }
+        if (cb3dLines) { cb3dLines.checked = false; if (typeof constellationLines3DGroup !== 'undefined' && constellationLines3DGroup) constellationLines3DGroup.visible = false; }
+        if (cb3dStars) {
+            cb3dStars.checked = true;
+            stars3DGroup.visible = true;
+            if (!_stars3DBaseLoaded) { loadStars3D(); }
+        }
+        const slider = document.getElementById('parallax_slider');
+        const f = slider ? (parseFloat(slider.value)||1) : (typeof stars3DScale !== 'undefined' ? stars3DScale : 1);
+        if (!isNaN(f)) {
+            if (typeof stars3DScale !== 'undefined') stars3DScale = f;
+            if (typeof stars3DGroup !== 'undefined' && stars3DGroup) stars3DGroup.scale.set(f,f,f);
+            if (typeof constellationLines3DGroup !== 'undefined' && constellationLines3DGroup) constellationLines3DGroup.scale.set(f,f,f);
+            if (typeof constellationStars3DGroup !== 'undefined' && constellationStars3DGroup) constellationStars3DGroup.scale.set(f,f,f);
+        }
+        camera.near = 0.02;
+        camera.far = 1e10;
+        camera.updateProjectionMatrix();
+    } catch(e) { }
+}
+(function hookResetButton(){
+    try {
+        const btn = document.getElementById('reset_layers_button');
+        if (btn) btn.addEventListener('click', ResetSkyLayers);
+    } catch(e) { }
+})();
+
+
+
+
+

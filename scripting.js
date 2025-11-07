@@ -534,10 +534,11 @@ controls.minDistance = 0.03;
 controls.maxDistance = 5e6;
 controls.enableDamping = true;
 controls.dampingFactor = 0.1;
+// Use default TrackballControls mouse mapping: LEFT=ROTATE, MIDDLE=ZOOM, RIGHT=PAN
 controls.mouseButtons = {
-    //RIGHT: THREE.MOUSE.ROTATE,
-    //LEFT : THREE.MOUSE.ROTATE
-    LEFT: THREE.MOUSE.RIGHT
+    LEFT: THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT: THREE.MOUSE.PAN
 }
 
 var skygeo = new THREE.SphereGeometry(5e7, 20, 20);

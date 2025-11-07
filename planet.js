@@ -196,18 +196,26 @@ class moon {
         if (this.loaded == true && dist > 100000) {
             this.loaded = false;
             this.initiated = false;
-            this.Mesh.geometry.dispose();
-            this.Mesh.material.dispose();
-            this.Mesh.material.map.dispose();
-            scene.remove(this.Mesh);
+            if (this.Mesh) {
+                if (this.Mesh.geometry) this.Mesh.geometry.dispose();
+                if (this.Mesh.material) {
+                    // Dispose texture maps if present
+                    if (this.Mesh.material.map) this.Mesh.material.map.dispose();
+                    if (this.Mesh.material.bumpMap) this.Mesh.material.bumpMap.dispose();
+                    if (this.Mesh.material.displacementMap) this.Mesh.material.displacementMap.dispose();
+                    if (this.Mesh.material.specularMap) this.Mesh.material.specularMap.dispose();
+                    this.Mesh.material.dispose();
+                }
+                scene.remove(this.Mesh);
+            }
             if (this.atmosphere != null) {
-                this.atmosphere.material.dispose();
-                this.atmosphere.geometry.dispose();
+                if (this.atmosphere.material) this.atmosphere.material.dispose();
+                if (this.atmosphere.geometry) this.atmosphere.geometry.dispose();
                 scene.remove(this.atmosphere);
             }
             if (this.clouds != null) {
-                this.clouds.material.dispose();
-                this.clouds.geometry.dispose();
+                if (this.clouds.material) this.clouds.material.dispose();
+                if (this.clouds.geometry) this.clouds.geometry.dispose();
                 scene.remove(this.clouds);
             }
             //eliminating 

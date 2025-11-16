@@ -16,10 +16,19 @@ const EARTH_RADIUS_METERS = 6378137
 const TILE_SCALE = 1 / EARTH_RADIUS_METERS
 const ROTATION_SPEED_PLANET = 0.03
 const ROTATION_SPEED_CLOUDS = 0.04
-const TIME_SCALE_MIN = 0.01
+const CLOUD_SHEAR_SPEED = 0.01
+const TIME_SCALE_MIN = 0.003
+const TIME_SLOW_START_ALT_METERS = 400000
+const TIME_STATIC_ALT_METERS = 25000
+const TILE_DETAIL_NEAR_ALT_METERS = 10000
+const TILE_DETAIL_FAR_ALT_METERS = 250000
+const TILE_ERROR_MULTIPLIER_CLOSE = 0.02
+const TILE_MAX_DEPTH_BOOST = 14
+const TILE_DETAIL_EASING_POWER = 0.4
+const TILE_RESOLUTION_MULTIPLIER_NEAR = 2.1
 const DEFAULT_TILE_QUALITY = {
-  errorTarget: 12,
-  maxDepth: 24,
+  errorTarget: 4,
+  maxDepth: 16,
   anisotropy: true,
 }
 
@@ -28,6 +37,7 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
   const cloudsRef = useRef(null)
   const tilesRef = useRef(null)
   const tilesContainerRef = useRef(null)
+  const tilesResolutionRef = useRef(new THREE.Vector2())
   const { gl, camera, scene } = useThree()
   const setTimeScale = useTimeStore((state) => state.setTimeScale)
   const setCameraTarget = useCameraTargetStore((state) => state.setTarget)
@@ -37,7 +47,7 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
   const enableClouds = enableProcedural || enableTiles
   const isHybrid = enableProcedural && enableTiles
 
-  const { errorTarget, maxDepth, anisotropy } = {
+  const { errorTarget: baseErrorTarget, maxDepth: baseMaxDepth, anisotropy } = {
     ...DEFAULT_TILE_QUALITY,
     ...(tileQuality || {}),
   }
@@ -120,8 +130,8 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
     }
 
     const tiles = new TilesRenderer()
-    tiles.errorTarget = errorTarget
-    tiles.maxDepth = maxDepth
+    tiles.errorTarget = baseErrorTarget
+    tiles.maxDepth = baseMaxDepth
     tiles.registerPlugin(new CesiumIonAuthPlugin({
       apiToken: GOOGLE_TILES_TOKEN,
       assetId: GOOGLE_TILES_ASSET_ID,
@@ -174,11 +184,44 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
       tilesRef.current = null
       tilesContainerRef.current = null
     }
-  }, [camera, gl, scene, enableTiles, errorTarget, maxDepth, anisotropy])
+  }, [camera, gl, scene, enableTiles, baseErrorTarget, baseMaxDepth, anisotropy])
 
   useFrame((state, delta) => {
     const tiles = tilesRef.current
     const cameraDistance = state.camera.position.length()
+    const cameraAltitudeMeters = Math.max(cameraDistance - 1, 0) * EARTH_RADIUS_METERS
+    if (tiles && enableTiles) {
+      tiles.setCamera(state.camera)
+      const detailRange = Math.max(TILE_DETAIL_FAR_ALT_METERS - TILE_DETAIL_NEAR_ALT_METERS, 1)
+      const detailBlend = THREE.MathUtils.clamp(
+        (cameraAltitudeMeters - TILE_DETAIL_NEAR_ALT_METERS) / detailRange,
+        0,
+        1,
+      )
+      const detailEased = Math.pow(detailBlend, TILE_DETAIL_EASING_POWER)
+      const closeErrorTarget = Math.max(baseErrorTarget * TILE_ERROR_MULTIPLIER_CLOSE, 0.02)
+      tiles.errorTarget = THREE.MathUtils.lerp(closeErrorTarget, baseErrorTarget, detailEased)
+      const boostedDepth = Math.round(
+        THREE.MathUtils.lerp(
+          baseMaxDepth + TILE_MAX_DEPTH_BOOST,
+          baseMaxDepth,
+          detailEased,
+        ),
+      )
+      tiles.maxDepth = Math.max(baseMaxDepth, boostedDepth)
+      const resolutionVec = tilesResolutionRef.current
+      state.gl.getDrawingBufferSize(resolutionVec)
+      const resolutionMultiplier = THREE.MathUtils.lerp(
+        TILE_RESOLUTION_MULTIPLIER_NEAR,
+        1,
+        detailEased,
+      )
+      tiles.setResolution(
+        state.camera,
+        resolutionVec.x * resolutionMultiplier,
+        resolutionVec.y * resolutionMultiplier,
+      )
+    }
     const rawBlend =
       TILE_FADE_START === TILE_FADE_END
         ? 1
@@ -189,7 +232,16 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
           )
     const blend = isHybrid ? rawBlend : enableTiles ? 1 : 0
     const blendForTime = enableTiles ? rawBlend : 0
-    const targetTimeScale = THREE.MathUtils.lerp(1, TIME_SCALE_MIN, blendForTime)
+    const baseTimeScale = THREE.MathUtils.lerp(1, TIME_SCALE_MIN, blendForTime)
+    const altitudeRange = Math.max(TIME_SLOW_START_ALT_METERS - TIME_STATIC_ALT_METERS, 1)
+    const altitudeBlend = THREE.MathUtils.clamp(
+      (cameraAltitudeMeters - TIME_STATIC_ALT_METERS) / altitudeRange,
+      0,
+      1,
+    )
+    const easedAltitude = Math.pow(altitudeBlend, 1.5)
+    const altitudeTimeScale = THREE.MathUtils.lerp(TIME_SCALE_MIN, 1, easedAltitude)
+    const targetTimeScale = Math.min(baseTimeScale, altitudeTimeScale)
     if (Math.abs(targetTimeScale - timeScaleRef.current) > 0.0005) {
       setTimeScale(targetTimeScale)
       timeScaleRef.current = targetTimeScale
@@ -204,7 +256,8 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
     if (enableClouds && cloudsRef.current) {
       const cloudFactor = ROTATION_SPEED_CLOUDS / ROTATION_SPEED_PLANET
       const cloudStep = rotationStep * cloudFactor
-      cloudsRef.current.rotation.y -= cloudStep
+      const relativeStep = cloudStep + scaledDelta * CLOUD_SHEAR_SPEED
+      cloudsRef.current.rotation.y -= relativeStep
       cloudsRef.current.visible = true
       const tilesOpacity = THREE.MathUtils.lerp(0.6, 0.35, blend)
       const targetOpacity = enableTiles ? tilesOpacity : 0.6
@@ -235,13 +288,12 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
       if (tilesContainerRef.current) {
         tilesContainerRef.current.visible = renderMode === 'tiles' ? true : blend > 0.01
       }
-      tiles.setCamera(state.camera)
-      tiles.setResolutionFromRenderer(state.camera, state.gl)
       tiles.update()
     }
   })
     
-  const focusEarth = useCallback(() => {
+  const focusEarth = useCallback((event) => {
+    event?.stopPropagation?.()
     setCameraTarget('earth', { x: 0, y: 0, z: 0 })
   }, [setCameraTarget])
 
@@ -281,7 +333,7 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
       )}
 
       {/* Invisible focus capture */}
-      <mesh onPointerDown={focusEarth}>
+      <mesh onDoubleClick={focusEarth}>
         <sphereGeometry args={[1.05, 16, 16]} />
         <meshBasicMaterial
           transparent

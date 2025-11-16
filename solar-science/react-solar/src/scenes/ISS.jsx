@@ -12,6 +12,7 @@ const ISS = () => {
 
   const target = useMemo(() => new THREE.Vector3(0, 0, 0), [])
   const focusVec = useMemo(() => new THREE.Vector3(), [])
+  const lastFocusVec = useRef(new THREE.Vector3())
   const setCameraTarget = useCameraTargetStore((state) => state.setTarget)
   const inclinationQuat = useMemo(() => {
     const quat = new THREE.Quaternion()
@@ -114,11 +115,19 @@ const ISS = () => {
     if (orbitLine.userData.uniforms) {
       orbitLine.userData.uniforms.uCenter.value = (angle / (2 * Math.PI)) % 1
     }
+    const activeTargetId = useCameraTargetStore.getState().targetId
+    if (activeTargetId === 'iss' && issRef.current) {
+      focusVec.copy(issRef.current.position)
+      if (focusVec.distanceToSquared(lastFocusVec.current) > 1e-12) {
+        lastFocusVec.current.copy(focusVec)
+        setCameraTarget('iss', focusVec)
+      }
+    }
   })
 
   const handleFocus = useCallback(
     (event) => {
-      event.stopPropagation()
+      event?.stopPropagation?.()
       if (!issRef.current) return
       focusVec.copy(issRef.current.position)
       setCameraTarget('iss', focusVec)
@@ -128,7 +137,7 @@ const ISS = () => {
 
   return (
     <>
-      <group ref={issRef} onPointerDown={handleFocus}>
+      <group ref={issRef} onDoubleClick={handleFocus}>
         <primitive object={scene.clone()} scale={0.00005} />
       </group>
       <primitive object={orbitLine} />

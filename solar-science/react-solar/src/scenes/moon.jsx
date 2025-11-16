@@ -22,14 +22,15 @@ const Moon = ({ displacementScale }) => {
         }
     })
 
-    const handleFocus = useCallback(() => {
+    const handleFocus = useCallback((event) => {
+        event?.stopPropagation?.();
         if (!groupRef.current) return;
         groupRef.current.getWorldPosition(focusVec);
         setCameraTarget('moon', focusVec);
     }, [focusVec, setCameraTarget]);
 
     return (
-        <group ref={groupRef} position={[4, 0, 0]} onPointerDown={handleFocus}>
+        <group ref={groupRef} position={[4, 0, 0]} onDoubleClick={handleFocus}>
             <mesh castShadow ref={moonRef}>
                 <sphereGeometry args={[0.5, 64, 64]} />
                 <meshStandardMaterial map={moonTexture} displacementMap={displacementMap} displacementScale={displacementScale} />

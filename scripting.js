@@ -1025,6 +1025,9 @@ var center = new THREE.Vector3(0, 0, 0);
 target = bodies.sol;
 info_target = bodies.sol;
 target.Position = new THREE.Vector3(0, 0, 0);
+// Approximate galactic orbital speed for the Sun (~230 km/s)
+// Velocity in SI (m/s); positions use 1e7 m per scene unit (handled in stellar.update)
+bodies.sol.Velocity = new THREE.Vector3(230000, 0, 0);
 
 moons.forEach(moon => moon.SetUp());
 stars.forEach(stellar => stellar.SetUp());

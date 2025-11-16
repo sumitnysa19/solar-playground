@@ -1,11 +1,11 @@
 import * as THREE from './module.js';
-import { scene, universal_loader, camera, target } from "./scripting.js";
+import { scene, universal_loader, camera, target, J_S } from "./scripting.js";
 import { Lensflare, LensflareElement } from './Lensflare.js';
 class stellar {
     constructor(Position, name) {
         this.Position = [];
         this.Physical = [];
-        this.Velocity = [];
+        this.Velocity = new THREE.Vector3(0, 0, 0);
         this.color = null;
         this.name = null;
         this.lensflare = null;
@@ -13,6 +13,7 @@ class stellar {
         this.tempurature
         this.parent = this;
         this.Data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        this._prevJS = null;
     }
     SetUp() {
         function colorTemperatureToRGB(kelvin) {
@@ -57,8 +58,24 @@ class stellar {
         this.light.add(this.lensflare);
         scene.add(this.light);
         this.light.position.copy(this.Position);
+        this._prevJS = (typeof J_S !== 'undefined') ? J_S : null;
     }
     update() {
+        // Integrate simple linear drift using simulated seconds and SI velocity
+        const jsFinite = Number.isFinite(J_S);
+        const prevFinite = Number.isFinite(this._prevJS);
+        if (jsFinite && prevFinite) {
+            const dS = J_S - this._prevJS; // simulated seconds since last update
+            if (Number.isFinite(dS) && dS !== 0 && this.Velocity && typeof this.Velocity.x === 'number') {
+                const dsScene = dS / 10000000; // convert meters -> scene units (1e7 m per unit)
+                if (Number.isFinite(dsScene)) {
+                    this.Position.addScaledVector(this.Velocity, dsScene);
+                    if (this.light) this.light.position.copy(this.Position);
+                }
+            }
+        }
+        // Initialize _prevJS only when J_S is valid to avoid NaN propagation
+        if (jsFinite) this._prevJS = J_S;
         if (camera.position.distanceTo(target.Position) > 5000000) {
             this.lensflare.visible = true;
             this.lensflare.material.color = new THREE.Color(0, 0, 1);

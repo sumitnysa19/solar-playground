@@ -159,6 +159,14 @@ The 3D rendering code paths can be wired to show a Points cloud and optional 3D 
 - Hover cursor: `onMouseMove` raycasts and updates `renderer.domElement.style.cursor` to `pointer`/`default`.
 - Click-to-focus: The click handler raycasts into `major_castable` (far) or `Castable` (near), then `GoTo(owner)`.
 
+### Sun Galactic Motion
+
+- The Sun now drifts through the scene with an approximate galactic orbital speed of `~230 km/s` (230,000 m/s), representing motion around the Milky Way.
+- Reference scale: positions are in scene units of `1e7 m` per unit; velocities are kept in SI (m/s) and integrated per simulated second.
+- Integration: `stellar.update()` advances stellar positions using the simulated time `J_S` each frame and updates the point light/lens flare accordingly.
+- Planets and moons inherit the parent body’s position/velocity (see `planet.js:46`), so the entire Solar System translates consistently with the Sun.
+- Typical parameters: Galactocentric radius `R0 ≈ 8.2 kpc (≈2.53e20 m)`, circular speed near the LSR `v ≈ 230 km/s`, orbital period `T ≈ 220 Myr` (2πR0/v). This simulation applies a local linear drift suitable for Solar System timescales rather than rendering a full 8 kpc-scale orbit.
+
 ## Known Issues & Fixes
 
 - SyntaxError: Unexpected token `export`

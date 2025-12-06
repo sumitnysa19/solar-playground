@@ -7,6 +7,7 @@ import { TilesRenderer } from '3d-tiles-renderer';
 import { CesiumIonAuthPlugin, GLTFExtensionsPlugin, TilesFadePlugin, UpdateOnChangePlugin } from '3d-tiles-renderer/plugins';
 import { useTimeStore } from '../store/useTimeStore';
 import { useCameraTargetStore } from '../store/useCameraTargetStore';
+import useOrbitalGuide from '../hooks/useOrbitalGuide';
 
 const GOOGLE_TILES_ASSET_ID = '2275207'
 const GOOGLE_TILES_TOKEN = import.meta.env?.VITE_CESIUM_ION_TOKEN || ''
@@ -26,6 +27,15 @@ const TILE_ERROR_MULTIPLIER_CLOSE = 0.02
 const TILE_MAX_DEPTH_BOOST = 14
 const TILE_DETAIL_EASING_POWER = 0.4
 const TILE_RESOLUTION_MULTIPLIER_NEAR = 2.1
+const EQUATOR_RADIUS = 20
+const EQUATOR_FILL_INNER_RADIUS = 0
+const EQUATOR_FILL_SEGMENTS = 64
+const EQUATOR_SEGMENTS = 256
+const EQUATOR_SECTORS = 12
+const EQUATOR_OPACITY = 0.45
+const EQUATOR_CIRCLE_COLOR = '#3db2ff'
+const EQUATOR_FILL_OPACITY = 0.2
+const EQUATOR_RADIAL_OPACITY = 0.8
 const DEFAULT_TILE_QUALITY = {
   errorTarget: 4,
   maxDepth: 16,
@@ -52,12 +62,30 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
     ...(tileQuality || {}),
   }
 
+  const { orbitalGuide, showOrbitalGuide } = useOrbitalGuide({
+    radius: EQUATOR_RADIUS,
+    segments: EQUATOR_SEGMENTS,
+    sectors: EQUATOR_SECTORS,
+    ringColor: EQUATOR_CIRCLE_COLOR,
+    ringOpacity: EQUATOR_OPACITY,
+    fillOpacity: EQUATOR_FILL_OPACITY,
+    radialOpacity: EQUATOR_RADIAL_OPACITY,
+    fillInnerRadius: EQUATOR_FILL_INNER_RADIUS,
+    fillSegments: EQUATOR_FILL_SEGMENTS,
+    rotation: [Math.PI / 2, 0, 0],
+  })
+
   useEffect(() => {
     const unsub = useTimeStore.subscribe((state) => {
       timeScaleRef.current = state.timeScale
     })
     return unsub
   }, [])
+
+  useEffect(() => {
+    showOrbitalGuide(false)
+    return () => showOrbitalGuide(false)
+  }, [showOrbitalGuide])
 
   // Load Basis (.basis) textures using BasisTextureLoader
   const [colorMap, bumpMap, specMap, cloudsMap, nightMap, dispMap] = useLoader(BasisTextureLoader, [
@@ -331,6 +359,9 @@ const Earth = ({ renderMode = 'hybrid', tileQuality = DEFAULT_TILE_QUALITY }) =>
           />
         </mesh>
       )}
+
+      {/* Equatorial guide */}
+      {orbitalGuide}
 
       {/* Invisible focus capture */}
       <mesh onDoubleClick={focusEarth}>

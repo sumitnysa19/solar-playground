@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sky View - Earth Sky Simulation MVP</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000011;
+            font-family: monospace;
+        }
+        #skyCanvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Canvas -->
+    <canvas id="skyCanvas"></canvas>
+
+    <!-- MVP Sky View: Minimal UI + 28 Nakshatras + 7 Bodies -->
+    <!-- Use shim to avoid circular dependencies with old system -->
+    <script type="module">
+        (async () => {
+            // Import utility functions from shim (no circular dependencies)
+            const functions_module = await import('./functions-shim.js');
+            
+            // Expose functions on window for lazy-load pattern in sky-module
+            window.vector = functions_module.vector;
+            window.EclipticToEquatorial = functions_module.EclipticToEquatorial;
+            window.DegToRad = functions_module.DegToRad;
+            window.RadToDeg = functions_module.RadToDeg;
+            
+            // Now load the new ES6 modules (they don't depend on old system)
+            const { SkyScene } = await import('./sky-module/SkyScene.js');
+            const { SkyControls } = await import('./sky-module/SkyControls.js');
+
+            // Initialize Sky Scene
+            const canvas = document.getElementById('skyCanvas');
+            const skyScene = new SkyScene(canvas, window.innerWidth, window.innerHeight);
+
+            // Initialize Controls
+            const skyControls = new SkyControls(skyScene, 'sky-controls-placeholder');
+
+            // Create placeholder for controls (they'll attach to body via fixed positioning)
+            const placeholder = document.createElement('div');
+            placeholder.id = 'sky-controls-placeholder';
+            document.body.appendChild(placeholder);
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                skyScene.onWindowResize(window.innerWidth, window.innerHeight);
+            });
+
+            // Keyboard shortcuts
+            document.addEventListener('keydown', (e) => {
+                switch (e.key.toLowerCase()) {
+                    case ' ':
+                        skyScene.setAnimating(!skyScene.isAnimating);
+                        break;
+                    case 't':
+                        skyScene.setTrailsVisible(!skyScene.scene.getObjectByName('trails')?.visible ?? true);
+                        break;
+                    case 'n':
+                        // Toggle nakshatras via UI would be handled by SkyControls
+                        break;
+                }
+            });
+
+            // Make scene accessible from console for debugging
+            window.skyScene = skyScene;
+            window.skyControls = skyControls;
+
+            console.log('%c🌌 Sky View MVP Initialized', 'font-size: 16px; color: #88ddff;');
+            console.log('Features:', {
+                bodies: ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn'],
+                nakshatras: 28,
+                trails: '6-hour sampling',
+                riseSet: '15-minute coarse calculation'
+            });
+        })();
+    </script>
+</body>
+</html>

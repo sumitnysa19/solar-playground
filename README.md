@@ -190,3 +190,5 @@ The 3D rendering code paths can be wired to show a Points cloud and optional 3D 
 ## License
 
 This is a reconstructed deployment of a website with third-party assets and data. Verify licensing for any external datasets (e.g., HYG, d3-celestial) before redistribution.
+
+npx http-server -p 8090

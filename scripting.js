@@ -500,11 +500,20 @@ document.getElementById("music").onclick = function () {
             sound.pause();
             break;
         case false:
-            music = true
+            music = true;
             sound.play();
             break;
     }
 }
+
+document.getElementById("horizon_plane").onclick = function () {
+    const checked = document.getElementById("horizon_plane").checked;
+    if (bodies.earth && bodies.earth.horizonPlane) {
+        bodies.earth.horizonPlane.visible = checked;
+    }
+}
+
+
 // scene setup  =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.sortObjects = true;
@@ -603,6 +612,79 @@ function click(event) {
     if (intersects[0] != null) {
         info_target = intersects[0].object.owner
         document.getElementById("info").innerHTML = (intersects[0].object.owner.info);
+
+        if (info_target.name === "earth" && info_target.Mesh && intersects[0].point) {
+            const earth = info_target;
+            const hitPoint = intersects[0].point.clone();
+
+            // Convert world hit point to local point relative to Earth Mesh
+            earth.Mesh.updateMatrixWorld();
+            const localPoint = earth.Mesh.worldToLocal(hitPoint);
+
+            // Align horizon plane to the hit point
+            if (earth.horizonPlane) {
+                earth.horizonPlane.position.copy(localPoint);
+
+                // Oblate Spheroid Normal calculation
+                // a = equatorial radius, b = polar radius
+                // Normal is (x/a^2, y/b^2, z/a^2)
+                const a = 1.0; // Normalized equatorial
+                const b = earth.Physical[1] / earth.Physical[0]; // Normalized polar
+                const normal = new THREE.Vector3(
+                    localPoint.x / (a * a),
+                    localPoint.y / (b * b),
+                    localPoint.z / (a * a)
+                ).normalize();
+                // Ensure normal points outward
+                if (normal.dot(localPoint) < 0) normal.negate();
+
+                // Build a stable local basis (East, North, Up) to avoid roll ambiguity
+                const northAxis = new THREE.Vector3(0, 1, 0);
+                let north = northAxis.clone().projectOnPlane(normal);
+                if (north.lengthSq() < 1e-6) {
+                    north = new THREE.Vector3(0, 0, 1).projectOnPlane(normal);
+                    if (north.lengthSq() < 1e-6) {
+                        north = new THREE.Vector3(1, 0, 0).projectOnPlane(normal);
+                    }
+                }
+                north.normalize();
+                const east = new THREE.Vector3().crossVectors(normal, north).normalize();
+                north = new THREE.Vector3().crossVectors(east, normal).normalize();
+                const basis = new THREE.Matrix4().makeBasis(east, north, normal);
+                earth.horizonPlane.quaternion.setFromRotationMatrix(basis);
+
+                // Position slightly above surface using the accurate normal
+                earth.horizonPlane.position.add(normal.clone().multiplyScalar(0.005));
+
+                // Make visible if the setting is on
+                if (document.getElementById("horizon_plane").checked) {
+                    earth.horizonPlane.visible = true;
+                }
+            }
+            // Store for persistence
+            earth.horizonLocalPos = localPoint.clone();
+
+            // Calculate Lat/Lon from local point (assuming sphere of radius R)
+            // localPoint is (x, y, z) in Earth's local space.
+            // In Three.js SphereGeometry, +Y is up (North Pole), +Z is front, +X is right.
+            const p = localPoint.clone().normalize();
+            const lat = Math.asin(p.y) * (180 / Math.PI);
+            const lon = Math.atan2(p.x, p.z) * (180 / Math.PI);
+
+            document.getElementById("lat_val").innerHTML = lat.toFixed(2) + "°";
+            document.getElementById("lon_val").innerHTML = lon.toFixed(2) + "°";
+
+            // Broadcast location to Earth-Sky view
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'SD79_LOCATION',
+                    payload: { lat, lon }
+                }, '*');
+            }
+        } else {
+            document.getElementById("lat_val").innerHTML = "-";
+            document.getElementById("lon_val").innerHTML = "-";
+        }
     }
 }
 function dbclick(event) {

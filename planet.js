@@ -85,6 +85,86 @@ class moon {
             this.clouds.rotateZ(rot[1]);
             scene.add(this.clouds)
         }
+        if (this.name === "earth") {
+            this.horizonGroup = new THREE.Group();
+
+            // 1. The circular plane (semi-transparent)
+            const planeGeom = new THREE.CircleGeometry(this.Physical[0] / 5000000, 32);
+            const planeMat = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.1,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const plane = new THREE.Mesh(planeGeom, planeMat);
+            this.horizonGroup.add(plane);
+
+            // 2. The grid (wireframe for structure)
+            const gridGeom = new THREE.CircleGeometry(this.Physical[0] / 5000000, 32, 8); // 8 rings
+            const gridMat = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.4,
+                depthWrite: false
+            });
+            const grid = new THREE.Mesh(gridGeom, gridMat);
+            this.horizonGroup.add(grid);
+
+            // 3. The Zenith Line (vertical pole)
+            const poleGeom = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, 0, this.Physical[0] / 5000000) // Points along local Z
+            ]);
+            const poleMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            this.zenithLine = new THREE.Line(poleGeom, poleMat);
+            this.horizonGroup.add(this.zenithLine);
+
+            this.horizonPlane = this.horizonGroup; // Reference for visibility toggle
+
+            // Sync visibility with checkbox
+            const hpCheckbox = document.getElementById("horizon_plane");
+            this.horizonPlane.visible = hpCheckbox ? hpCheckbox.checked : false;
+
+            // The plane group must be a child of the Mesh so it stays anchored as Earth rotates
+            this.Mesh.add(this.horizonGroup);
+
+            // Restore position if we had one
+            if (this.horizonLocalPos) {
+                this.horizonPlane.position.copy(this.horizonLocalPos);
+
+                // Oblate Spheroid Normal calculation
+                const a = 1.0;
+                const b = this.Physical[1] / this.Physical[0];
+                const normal = new THREE.Vector3(
+                    this.horizonLocalPos.x / (a * a),
+                    this.horizonLocalPos.y / (b * b),
+                    this.horizonLocalPos.z / (a * a)
+                ).normalize();
+                // Ensure normal points outward
+                if (normal.dot(this.horizonLocalPos) < 0) normal.negate();
+
+                // Stable local basis (East, North, Up)
+                const northAxis = new THREE.Vector3(0, 1, 0);
+                let north = northAxis.clone().projectOnPlane(normal);
+                if (north.lengthSq() < 1e-6) {
+                    north = new THREE.Vector3(0, 0, 1).projectOnPlane(normal);
+                    if (north.lengthSq() < 1e-6) {
+                        north = new THREE.Vector3(1, 0, 0).projectOnPlane(normal);
+                    }
+                }
+                north.normalize();
+                const east = new THREE.Vector3().crossVectors(normal, north).normalize();
+                north = new THREE.Vector3().crossVectors(east, normal).normalize();
+                const basis = new THREE.Matrix4().makeBasis(east, north, normal);
+                this.horizonPlane.quaternion.setFromRotationMatrix(basis);
+
+                // Offset using the accurate normal
+                this.horizonPlane.position.add(normal.multiplyScalar(0.005));
+            }
+        }
+
         if (this.Physical[4] > 0) {
             var rot = CelestialToEcliptic(DegToRad(this.Physical[4]), DegToRad(this.Physical[5]));
             this.Mesh.rotateY(rot[0]);
@@ -111,7 +191,8 @@ class moon {
         }
         this.Mesh.material.dithering = true;
         this.initiated = true;
-        meshes.push(this.Mesh)
+        if (!meshes.includes(this.Mesh)) meshes.push(this.Mesh);
+        if (!Castable.includes(this.Mesh)) Castable.push(this.Mesh);
 
     }
     SetUp() {

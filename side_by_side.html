@@ -49,8 +49,8 @@
         window.addEventListener('message', (event) => {
             if (!event.data) return;
 
-            // Forward SD79 data (from Left) to Right
-            if (event.data.type === 'SD79_DATA') {
+            // Forward SD79 data (time or location) (from Left) to Right
+            if (event.data.type === 'SD79_DATA' || event.data.type === 'SD79_LOCATION') {
                 if (rightFrame.contentWindow) {
                     rightFrame.contentWindow.postMessage(event.data, '*');
                 }

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System & Earth-Sky Simulation</title>
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        .pane {
+            flex: 1;
+            border: none;
+        }
+
+        #left {
+            border-right: 1px solid #333;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Left: Solar System Simulation -->
+        <iframe id="left" class="pane" src="planetesimal.html"></iframe>
+        <!-- Right: Earth-Sky View -->
+        <iframe id="right" class="pane" src="nightsky/earth-sky/index.html"></iframe>
+    </div>
+
+    <script>
+        // Message Relay
+        const leftFrame = document.getElementById('left');
+        const rightFrame = document.getElementById('right');
+
+        window.addEventListener('message', (event) => {
+            if (!event.data) return;
+
+            // Forward SD79 data (from Left) to Right
+            if (event.data.type === 'SD79_DATA') {
+                if (rightFrame.contentWindow) {
+                    rightFrame.contentWindow.postMessage(event.data, '*');
+                }
+            }
+            // Forward Earth-Sky data (from Right) to Left
+            else if (event.data.type === 'EARTH_SKY_DATA') {
+                if (leftFrame.contentWindow) {
+                    leftFrame.contentWindow.postMessage(event.data, '*');
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

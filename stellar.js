@@ -61,6 +61,8 @@ class stellar {
         this._prevJS = (typeof J_S !== 'undefined') ? J_S : null;
     }
     update() {
+        /*
+        // Incomplete and not precise - commenting out Sun movement for now
         // Integrate simple linear drift using simulated seconds and SI velocity
         const jsFinite = Number.isFinite(J_S);
         const prevFinite = Number.isFinite(this._prevJS);
@@ -76,6 +78,7 @@ class stellar {
         }
         // Initialize _prevJS only when J_S is valid to avoid NaN propagation
         if (jsFinite) this._prevJS = J_S;
+        */
         if (camera.position.distanceTo(target.Position) > 5000000) {
             this.lensflare.visible = true;
             this.lensflare.material.color = new THREE.Color(0, 0, 1);
@@ -86,4 +89,4 @@ class stellar {
         }
     }
 }
-export {stellar};
+export { stellar };

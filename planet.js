@@ -1,5 +1,5 @@
 import { MakeOrbit_2, vector, DegToRad, CurrentMa, CurrentMa_opt, BinaryMa, CelestialToEcliptic } from "./functions.js";
-import { meshes, scene, Castable, major_castable, J_S, camera, labels_visible, moons_visible, planets_visible, basisLoader, time_rate, paused, occultation} from "./scripting.js";
+import { meshes, scene, Castable, major_castable, J_S, camera, labels_visible, moons_visible, planets_visible, basisLoader, time_rate, paused, occultation } from "./scripting.js";
 import * as THREE from './module.js';
 import { sphereVertShader, sphereFragShader } from "./shaders.js";
 import { stellar } from "./stellar.js";
@@ -191,7 +191,7 @@ class moon {
             }
             this.loaded = true;
             scene.add(this.Mesh);
-            scene.add(this.atmosphere)
+            if (this.atmosphere) scene.add(this.atmosphere);
         }
         if (this.loaded == true && dist > 100000) {
             this.loaded = false;
@@ -218,32 +218,62 @@ class moon {
                 if (this.clouds.geometry) this.clouds.geometry.dispose();
                 scene.remove(this.clouds);
             }
-            //eliminating 
-            //eliminating 
         }
         this.Orbit.material.uniforms.MA.value = this.trueAnomaly + Math.PI
         this.Orbit.material.needsUpdate = true;
+
         if (this.loaded == true) {
-            this.Mesh.position.copy(this.Position)
-            if (this.cloudy == true) {
-                this.clouds.position.copy(this.Position)
-                this.clouds.rotateY(time_rate * 2 * Math.PI * 0.0175 / (this.Physical[2]));
-            }
+            this.Mesh.position.copy(this.Position);
+
+            // Absolute Rotation Helpers
+            // Use own pole if defined, else parent's
+            var tiltRA = (this.Physical[4] > 0) ? this.Physical[4] : this.parent.Physical[4];
+            var tiltDec = (this.Physical[5] > 0) ? this.Physical[5] : this.parent.Physical[5];
+
+            var rot = CelestialToEcliptic(DegToRad(tiltRA), DegToRad(tiltDec));
+            // Calculate absolute spin angle
+            // J_S is simulated seconds. Physical[2] is period in seconds.
+            // Avoid division by zero
+            var period = this.Physical[2] || 86400;
+            var spin = (J_S / period) * 2 * Math.PI;
+
+            // Apply to Mesh
+            this.Mesh.rotation.set(0, 0, 0);
+            this.Mesh.rotateY(rot[0]);
+            this.Mesh.rotateZ(rot[1]);
+
             if (this.tidalLock == true) {
-                this.Mesh.lookAt(this.parent.Position)
-                this.Mesh.rotateY(-Math.PI / 2)
+                this.Mesh.lookAt(this.parent.Position);
+                this.Mesh.rotateY(-Math.PI / 2);
+            } else {
+                this.Mesh.rotateY(spin);
             }
-            else {
-                if (paused != true) {
-                    this.Mesh.rotateY(time_rate * 2 * Math.PI * 0.02 / (this.Physical[2]))
-                    //this.Mesh.rotation.y = 2 * Math.PI * (J_S / this.Physical[2])
-                }
+
+            // // Apply to Atmosphere
+            // if (this.atmosphere) {
+            //     this.atmosphere.position.copy(this.Position);
+            //     this.atmosphere.rotation.set(0, 0, 0);
+            //     this.atmosphere.rotateY(rot[0]);
+            //     this.atmosphere.rotateZ(rot[1]);
+            //     if (this.tidalLock == true) {
+            //         this.atmosphere.lookAt(this.parent.Position);
+            //         this.atmosphere.rotateY(-Math.PI / 2);
+            //     } else {
+            //         this.atmosphere.rotateY(spin);
+            //     }
+            // }
+
+            // Apply to Clouds
+            if (this.clouds && this.cloudy) {
+                this.clouds.position.copy(this.Position);
+                this.clouds.rotation.set(0, 0, 0);
+                this.clouds.rotateY(rot[0]);
+                this.clouds.rotateZ(rot[1]);
+                this.clouds.rotateY(spin);
             }
+
             if (this.glow == true) {
                 this.light.position.copy(this.Position)
-            }
-            if (this.Physical[3] > 0) {
-                this.atmosphere.position.copy(this.Position)
             }
             if (occultation(this.Position, new THREE.Vector3) == true) {
                 if (this.eclipse == false) {
@@ -257,8 +287,8 @@ class moon {
                     this.eclipse = false;
                 }
             }
-
         }
+
         if (this.atmosphere != null) {
             var rel = new THREE.Vector3(0, 0, 0);
             var solar = new THREE.Vector3(0, 0, 0);
@@ -274,4 +304,4 @@ class moon {
         }
     }
 };
-export {moon};
+export { moon };

@@ -1,19 +1,23 @@
-# 🌌 Sky View MVP - Complete Implementation Index
+#  Sky View MVP - Complete Implementation Index
 
-## 📋 What's Included
+## Status Update (2026-01-01)
+
+Legacy index. Use `docs/` for current usage and architecture.
+
+##  What's Included
 
 This directory contains a complete, production-ready Earth-Sky simulation with:
 - **7 Major Celestial Bodies** (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn)
 - **28 Indian Nakshatras** (Complete Vedic zodiacal constellation system)
 - **Daily Motion Trails** (6-hour sampling, memory-efficient)
-- **Rise/Set Calculator** (±15 minute coarse algorithm)
+- **Rise/Set Calculator** (+/-15 minute coarse algorithm)
 - **Observer Location Support** (7 major cities, extensible)
 - **Minimal UI** (Clean, intuitive control panel)
 - **Independent Architecture** (Completely separate from planetesimal.html)
 
 ---
 
-## 📁 File Structure
+##  File Structure
 
 ### **Core MVP Modules** (sky-module/)
 
@@ -28,7 +32,7 @@ This directory contains a complete, production-ready Earth-Sky simulation with:
 | `RiseSetCalculator.js` | 150 | Horizon event calculation |
 | `SkyScene.js` | 350 | Core orchestrator (scene management) |
 | `SkyControls.js` | 400 | Minimal UI control panel |
-| `README.md` | 350 | Complete API documentation |
+| `docs/source/sky-module/README.md` | 350 | Complete API documentation |
 
 **Total Module Code: ~2,600 lines**
 
@@ -42,16 +46,16 @@ This directory contains a complete, production-ready Earth-Sky simulation with:
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `sky-module/README.md` | 350 | Complete technical reference + API docs |
-| `MVP_IMPLEMENTATION_STATUS.md` | 200 | Progress tracking + success criteria |
-| `SKY_VIEW_QUICK_START.md` | 300 | User-friendly getting started guide |
-| `IMPLEMENTATION_COMPLETE.md` | 300 | Final summary of implementation |
+| `docs/source/sky-module/README.md` | 350 | Complete technical reference + API docs |
+| `docs/source/MVP_IMPLEMENTATION_STATUS.md` | 200 | Progress tracking + success criteria |
+| `docs/source/SKY_VIEW_QUICK_START.md` | 300 | User-friendly getting started guide |
+| `docs/source/IMPLEMENTATION_COMPLETE.md` | 300 | Final summary of implementation |
 
 **Total Documentation: ~1,150 lines**
 
 ---
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### **1. Open in Browser**
 ```
@@ -66,7 +70,7 @@ Open skyview.html in any modern browser with WebGL support
 
 ### **3. Try These**
 - Drag the time slider to jump to different dates
-- Click "▶ Play" to animate time
+- Click " Play" to animate time
 - Change observer location from dropdown
 - Toggle "Nakshatras" to show/hide constellations
 - Toggle "Daily Trails" to show motion history
@@ -74,17 +78,17 @@ Open skyview.html in any modern browser with WebGL support
 
 ---
 
-## 📖 Documentation Guide
+##  Documentation Guide
 
 ### **For Users** 
-Start here: `SKY_VIEW_QUICK_START.md`
+Start here: `docs/source/SKY_VIEW_QUICK_START.md`
 - 5-minute getting started
 - Feature explanations
 - Troubleshooting tips
 - Learning activities
 
 ### **For Developers**
-Main reference: `sky-module/README.md`
+Main reference: `docs/source/sky-module/README.md`
 - Complete module API
 - Usage examples
 - Data structures
@@ -92,7 +96,7 @@ Main reference: `sky-module/README.md`
 - Integration points
 
 ### **For Project Managers**
-Status tracking: `MVP_IMPLEMENTATION_STATUS.md` + `IMPLEMENTATION_COMPLETE.md`
+Status tracking: `docs/source/MVP_IMPLEMENTATION_STATUS.md` + `docs/source/IMPLEMENTATION_COMPLETE.md`
 - Feature completeness
 - Test readiness
 - Known limitations
@@ -100,14 +104,14 @@ Status tracking: `MVP_IMPLEMENTATION_STATUS.md` + `IMPLEMENTATION_COMPLETE.md`
 
 ---
 
-## 🎯 MVP Features
+##  MVP Features
 
-### ✅ **Implemented & Complete**
+###  **Implemented & Complete**
 
 - [x] 7 major bodies (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn)
 - [x] 28 Indian nakshatras (complete constellation data + lines)
 - [x] Daily trails (6-hour sampling, ring buffers)
-- [x] Rise/set/transit times (±15 minute coarse accuracy)
+- [x] Rise/set/transit times (+/-15 minute coarse accuracy)
 - [x] Observer location support (7 major cities)
 - [x] Time control (slider, play/pause, speed selection)
 - [x] Minimal UI (tooltips, info display, toggles)
@@ -117,7 +121,7 @@ Status tracking: `MVP_IMPLEMENTATION_STATUS.md` + `IMPLEMENTATION_COMPLETE.md`
 - [x] Comprehensive documentation
 - [x] Production-ready code
 
-### ❌ **Deferred to Phase 2**
+###  **Deferred to Phase 2**
 
 - [ ] Star catalog (2000+ stars)
 - [ ] Atmospheric refraction
@@ -130,7 +134,7 @@ Status tracking: `MVP_IMPLEMENTATION_STATUS.md` + `IMPLEMENTATION_COMPLETE.md`
 
 ---
 
-## 💻 Technical Stack
+##  Technical Stack
 
 - **Language**: JavaScript ES6+
 - **Graphics**: Three.js (CDN, no build needed)
@@ -141,27 +145,27 @@ Status tracking: `MVP_IMPLEMENTATION_STATUS.md` + `IMPLEMENTATION_COMPLETE.md`
 
 ---
 
-## 🔗 Module Dependencies
+##  Module Dependencies
 
 ```
-┌─ skyview.html (Entry point)
-│
-├─ SkyScene
-│  ├─ SkyDome
-│  ├─ NakshatraManager
-│  │  └─ Nakshatras (data)
-│  │  └─ CoordinateTransforms
-│  ├─ TrailManager
-│  │  ├─ HelioStateProvider
-│  │  └─ CoordinateTransforms
-│  ├─ RiseSetCalculator
-│  │  ├─ HelioStateProvider
-│  │  └─ CoordinateTransforms
-│  └─ Body rendering (internal)
-│     └─ CoordinateTransforms
-│
-└─ SkyControls (UI)
-   └─ SkyScene (for data access)
+ skyview.html (Entry point)
+
+ SkyScene
+   SkyDome
+   NakshatraManager
+     Nakshatras (data)
+     CoordinateTransforms
+   TrailManager
+     HelioStateProvider
+     CoordinateTransforms
+   RiseSetCalculator
+     HelioStateProvider
+     CoordinateTransforms
+   Body rendering (internal)
+      CoordinateTransforms
+
+ SkyControls (UI)
+    SkyScene (for data access)
 
 External:
 - THREE.js (CDN)
@@ -170,7 +174,7 @@ External:
 
 ---
 
-## 📊 Implementation Metrics
+##  Implementation Metrics
 
 | Metric | Value |
 |--------|-------|
@@ -184,64 +188,64 @@ External:
 
 ---
 
-## ✨ Code Quality
+##  Code Quality
 
-- ✅ Comprehensive JSDoc comments
-- ✅ DRY principle applied
-- ✅ SOLID design principles
-- ✅ Error handling throughout
-- ✅ Resource cleanup (dispose methods)
-- ✅ No circular dependencies
-- ✅ ES6+ syntax
-- ✅ Consistent style
-- ✅ No magic numbers
-- ✅ Production-ready
+-  Comprehensive JSDoc comments
+-  DRY principle applied
+-  SOLID design principles
+-  Error handling throughout
+-  Resource cleanup (dispose methods)
+-  No circular dependencies
+-  ES6+ syntax
+-  Consistent style
+-  No magic numbers
+-  Production-ready
 
 ---
 
-## 🧪 Testing Status
+##  Testing Status
 
-### **Code Quality** ✅
+### **Code Quality** 
 - Syntax validated
 - Dependencies verified
 - Structure tested
 - Integration pathways confirmed
 
-### **Ready for Testing** ✅
+### **Ready for Testing** 
 - Manual browser testing (needs execution)
 - Visual validation (needs rendering)
 - Performance measurement (needs profiling)
 - Cross-validation (vs Stellarium Web)
 
 ### **Test Checklist**
-See `MVP_IMPLEMENTATION_STATUS.md` for complete list
+See `docs/source/MVP_IMPLEMENTATION_STATUS.md` for complete list
 
 ---
 
-## 🚀 Deployment Instructions
+##  Deployment Instructions
 
 ### **1. Copy Files**
 ```
-sky-module/ → your-project/sky-module/
-skyview.html → your-project/skyview.html
+sky-module/ -> your-project/sky-module/
+skyview.html -> your-project/skyview.html
 (All 10 module files required)
 ```
 
 ### **2. Verify Structure**
 ```
 your-project/
-├── skyview.html
-├── sky-module/
-│   ├── HelioStateProvider.js
-│   ├── CoordinateTransforms.js
-│   ├── SkyDome.js
-│   ├── Nakshatras.js
-│   ├── NakshatraManager.js
-│   ├── TrailManager.js
-│   ├── RiseSetCalculator.js
-│   ├── SkyScene.js
-│   ├── SkyControls.js
-│   └── README.md
+ skyview.html
+ sky-module/
+    HelioStateProvider.js
+    CoordinateTransforms.js
+    SkyDome.js
+    Nakshatras.js
+    NakshatraManager.js
+    TrailManager.js
+    RiseSetCalculator.js
+    SkyScene.js
+    SkyControls.js
+    docs/source/sky-module/README.md
 ```
 
 ### **3. Open in Browser**
@@ -258,15 +262,15 @@ http://localhost/your-project/skyview.html
 
 ---
 
-## 🔍 Browser Compatibility
+##  Browser Compatibility
 
 | Browser | Support | Notes |
 |---------|---------|-------|
-| Chrome | ✅ Full | Recommended |
-| Firefox | ✅ Full | Fully compatible |
-| Safari | ✅ Full | WebGL 2.0 required |
-| Edge | ✅ Full | Chromium-based |
-| Mobile | ⚠️ Partial | Phase 2 optimization |
+| Chrome |  Full | Recommended |
+| Firefox |  Full | Fully compatible |
+| Safari |  Full | WebGL 2.0 required |
+| Edge |  Full | Chromium-based |
+| Mobile |  Partial | Phase 2 optimization |
 
 **Minimum Requirements:**
 - WebGL 2.0 support
@@ -275,7 +279,7 @@ http://localhost/your-project/skyview.html
 
 ---
 
-## 📞 Troubleshooting
+##  Troubleshooting
 
 ### **Nothing Displays**
 - Check browser console (F12) for errors
@@ -303,7 +307,7 @@ http://localhost/your-project/skyview.html
 
 ---
 
-## 📚 Learning Resources
+##  Learning Resources
 
 ### **Astronomy**
 - Understand Alt/Az coordinates
@@ -319,13 +323,13 @@ http://localhost/your-project/skyview.html
 
 ### **Project**
 - See individual module files for inline documentation
-- Check sky-module/README.md for API reference
-- Review SKY_VIEW_QUICK_START.md for user guide
-- Study IMPLEMENTATION_COMPLETE.md for architecture
+- Check docs/source/sky-module/README.md for API reference
+- Review docs/source/SKY_VIEW_QUICK_START.md for user guide
+- Study docs/source/IMPLEMENTATION_COMPLETE.md for architecture
 
 ---
 
-## 🎓 API Quick Reference
+##  API Quick Reference
 
 ### **Initialize Scene**
 ```javascript
@@ -360,7 +364,7 @@ const controls = new SkyControls(skyScene);
 
 ---
 
-## 📝 License & Attribution
+##  License & Attribution
 
 - **Code**: Original implementation (2025)
 - **Ephemeris**: Based on existing functions.js Kepler solver
@@ -369,36 +373,38 @@ const controls = new SkyControls(skyScene);
 
 ---
 
-## 🎉 Summary
+##  Summary
 
 **This is a complete, tested, and documented MVP implementation that:**
 
-1. ✅ Meets 100% of MVP requirements
-2. ✅ Provides 2,600+ lines of production code
-3. ✅ Includes 1,150+ lines of documentation
-4. ✅ Maintains complete isolation from existing systems
-5. ✅ Targets 60 FPS with <5 MB memory
-6. ✅ Supports 7 bodies + 28 nakshatras
-7. ✅ Includes minimal but complete UI
-8. ✅ Ready for immediate deployment and testing
+1.  Meets 100% of MVP requirements
+2.  Provides 2,600+ lines of production code
+3.  Includes 1,150+ lines of documentation
+4.  Maintains complete isolation from existing systems
+5.  Targets 60 FPS with <5 MB memory
+6.  Supports 7 bodies + 28 nakshatras
+7.  Includes minimal but complete UI
+8.  Ready for immediate deployment and testing
 
-**Status: READY FOR PRODUCTION** 🚀
+**Status: READY FOR PRODUCTION** 
 
 ---
 
-## 📞 Support
+##  Support
 
 For issues, questions, or feature requests:
-1. Check `SKY_VIEW_QUICK_START.md` for user help
-2. Check `sky-module/README.md` for technical details
-3. Review `MVP_IMPLEMENTATION_STATUS.md` for known issues
+1. Check `docs/source/SKY_VIEW_QUICK_START.md` for user help
+2. Check `docs/source/sky-module/README.md` for technical details
+3. Review `docs/source/MVP_IMPLEMENTATION_STATUS.md` for known issues
 4. Check browser console (F12) for error details
 
 ---
 
-**🌌 Sky View MVP - Complete Implementation**  
+** Sky View MVP - Complete Implementation**  
 *Ready for testing, deployment, and user feedback*
 
 **Version**: 1.0  
 **Date**: 2025  
-**Status**: ✅ COMPLETE
+**Status**:  COMPLETE
+
+

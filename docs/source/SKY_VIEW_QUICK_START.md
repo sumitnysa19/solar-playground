@@ -1,6 +1,10 @@
 # Sky View MVP - Quick Start Guide
 
-## 🚀 Getting Started (30 seconds)
+## Status Update (2026-01-01)
+
+Quick start for legacy sky view. The current Earth-sky viewer is `nightsky/earth-sky/index.html`.
+
+##  Getting Started (30 seconds)
 
 ### 1. **Open the Sky View**
 ```
@@ -20,7 +24,7 @@ Open: http://localhost/path/to/skyview.html
 | Action | Effect |
 |--------|--------|
 | **Drag time slider** (left side) | Jump to different dates |
-| **Click ▶ Play button** | Start time animation |
+| **Click  Play button** | Start time animation |
 | **Change observer dropdown** | Switch location (Delhi, London, Tokyo, etc.) |
 | **Check "Nakshatras"** | Toggle 28 constellation visibility |
 | **Check "Daily Trails"** | Toggle motion trails on/off |
@@ -29,24 +33,24 @@ Open: http://localhost/path/to/skyview.html
 
 ---
 
-## 📍 Observer Locations (Built-in Presets)
+##  Observer Locations (Built-in Presets)
 
 The MVP includes 7 major cities pre-configured:
 
-1. **Delhi, India** (28.61°N, 77.21°E) - Default
-2. **Mumbai, India** (19.08°N, 72.88°E)
-3. **Bangalore, India** (12.97°N, 77.59°E)
-4. **London, UK** (51.51°N, -0.13°E)
-5. **New York, USA** (40.71°N, -74.01°W)
-6. **Tokyo, Japan** (35.68°N, 139.65°E)
-7. **Sydney, Australia** (-33.87°S, 151.21°E)
+1. **Delhi, India** (28.61degN, 77.21degE) - Default
+2. **Mumbai, India** (19.08degN, 72.88degE)
+3. **Bangalore, India** (12.97degN, 77.59degE)
+4. **London, UK** (51.51degN, -0.13degE)
+5. **New York, USA** (40.71degN, -74.01degW)
+6. **Tokyo, Japan** (35.68degN, 139.65degE)
+7. **Sydney, Australia** (-33.87degS, 151.21degE)
 
 **To use custom coordinates:**
-- Select location dropdown → will appear in Phase 2
+- Select location dropdown -> will appear in Phase 2
 
 ---
 
-## ⌚ Time Control
+##  Time Control
 
 ### Current Display
 - Shows date/time at top of control panel
@@ -54,7 +58,7 @@ The MVP includes 7 major cities pre-configured:
 - Automatically updates every second
 
 ### Time Slider
-- **Range**: ±30 days from current date
+- **Range**: +/-30 days from current date
 - **Resolution**: 1-day steps
 - **Label**: Shows "Today", "Yesterday", "Tomorrow" or date
 
@@ -68,19 +72,19 @@ The MVP includes 7 major cities pre-configured:
 
 ---
 
-## 🔭 The 7 Bodies
+##  The 7 Bodies
 
 All displayed with accurate positions for your observer location and time:
 
 | Body | Color | Description |
 |------|-------|-------------|
-| **Sun** | 🟡 Yellow | Shows sunrise/sunset times |
-| **Moon** | ⚪ White | Lunar phases follow automatically |
-| **Mercury** | 🔘 Gray | Innermost planet, hard to see |
-| **Venus** | 🟡 Bright yellow | Brightest "star", often visible near sunrise/sunset |
-| **Mars** | 🔴 Red-orange | The red planet |
-| **Jupiter** | 🟠 Orange | Large, often visible |
-| **Saturn** | 🟡 Pale yellow | With rings (simplified sphere in MVP) |
+| **Sun** |  Yellow | Shows sunrise/sunset times |
+| **Moon** |  White | Lunar phases follow automatically |
+| **Mercury** |  Gray | Innermost planet, hard to see |
+| **Venus** |  Bright yellow | Brightest "star", often visible near sunrise/sunset |
+| **Mars** |  Red-orange | The red planet |
+| **Jupiter** |  Orange | Large, often visible |
+| **Saturn** |  Pale yellow | With rings (simplified sphere in MVP) |
 
 ### What You Can Learn
 
@@ -92,7 +96,7 @@ Try these experiments:
 
 2. **Watch Moon phase changes**
    - Animate from new moon to full moon
-   - Each complete cycle ≈ 29.5 days
+   - Each complete cycle  29.5 days
 
 3. **Track Venus's "morning star" to "evening star" transitions**
    - At different locations, timing varies
@@ -104,7 +108,7 @@ Try these experiments:
 
 ---
 
-## 🌟 The 28 Nakshatras (Indian Zodiac)
+##  The 28 Nakshatras (Indian Zodiac)
 
 Complete constellation system based on Vedic astronomy:
 
@@ -126,8 +130,8 @@ Complete constellation system based on Vedic astronomy:
 | 6 | Ardra | Rahu (North Node) |
 | 7 | Punarvasu | Jupiter |
 | 8 | Pushya | Saturn |
-| 9 | Ashleshā | Mercury |
-| 10 | Maghā | Ketu |
+| 9 | Ashlesh | Mercury |
+| 10 | Magh | Ketu |
 | 11 | Purva Phalguni | Venus |
 | 12 | Uttara Phalguni | Sun |
 | 13 | Hasta | Moon |
@@ -155,14 +159,14 @@ Complete constellation system based on Vedic astronomy:
 
 ---
 
-## 📊 Information Display
+##  Information Display
 
 ### Bottom-Left Control Panel Shows
 
 1. **Current Date/Time**: YYYY-MM-DD HH:MM:SS UTC
 2. **Julian Date**: Technical time standard (JD)
 3. **Observer**: Current location name
-4. **Time Slider**: Jump to any date (±30 days)
+4. **Time Slider**: Jump to any date (+/-30 days)
 5. **Animation Controls**: Play/Pause, speed selection
 6. **Observer Selector**: 7 major world cities
 7. **Toggles**: Nakshatras, Trails, Grid
@@ -176,7 +180,7 @@ Complete constellation system based on Vedic astronomy:
 
 ---
 
-## 🎮 Keyboard Shortcuts
+##  Keyboard Shortcuts
 
 | Key | Action |
 |-----|--------|
@@ -186,7 +190,7 @@ Complete constellation system based on Vedic astronomy:
 
 ---
 
-## 🐛 Troubleshooting
+##  Troubleshooting
 
 ### **"I don't see any bodies"**
 - Check date is realistic (2020-2030 range)
@@ -213,14 +217,14 @@ Complete constellation system based on Vedic astronomy:
 - Close other browser tabs
 
 ### **"Planetesimal.html still works, right?"**
-- ✅ Yes! Sky View is completely separate
+-  Yes! Sky View is completely separate
 - You can open both in different tabs
 - No data sharing between them
 - Planetesimal.html changes don't affect Sky View
 
 ---
 
-## 🔬 For Astronomy Enthusiasts
+##  For Astronomy Enthusiasts
 
 ### Advanced Features Available
 
@@ -232,29 +236,29 @@ Complete constellation system based on Vedic astronomy:
 
 ### Limitations (Phase 2 Enhancements)
 
-- ❌ No atmospheric refraction (next version)
-- ❌ No parallax (fixed geocentric)
-- ❌ No precession (J2000.0 epoch fixed)
-- ❌ No proper motion
-- ❌ No star catalog
-- ❌ No twilight visualization
+-  No atmospheric refraction (next version)
+-  No parallax (fixed geocentric)
+-  No precession (J2000.0 epoch fixed)
+-  No proper motion
+-  No star catalog
+-  No twilight visualization
 
 ### Comparison to Professional Software
 
 | Feature | Sky View MVP | Stellarium | Celestia |
 |---------|-------------|-----------|----------|
-| 28 Nakshatras | ✅ | ❌ | ❌ |
-| 7 Major Bodies | ✅ | ✅ | ✅ |
-| Rise/Set Times | ✅ | ✅ | ✅ |
-| Trails | ✅ | ✅ | ✅ |
-| Star Catalog | ❌ | ✅ | ✅ |
-| Atmospheric Effects | ❌ | ✅ | ✅ |
-| Milky Way | ❌ | ✅ | ✅ |
-| 3D Space Navigation | ❌ | Partial | ✅ |
+| 28 Nakshatras |  |  |  |
+| 7 Major Bodies |  |  |  |
+| Rise/Set Times |  |  |  |
+| Trails |  |  |  |
+| Star Catalog |  |  |  |
+| Atmospheric Effects |  |  |  |
+| Milky Way |  |  |  |
+| 3D Space Navigation |  | Partial |  |
 
 ---
 
-## 📚 Learning Resources
+##  Learning Resources
 
 ### Understanding the Interface
 
@@ -268,22 +272,22 @@ Complete constellation system based on Vedic astronomy:
 
 ### Understanding the Data
 
-- **Altitude**: 0° = horizon, 90° = straight up (zenith), negative = below horizon
-- **Azimuth**: 0° = North, 90° = East, 180° = South, 270° = West
+- **Altitude**: 0deg = horizon, 90deg = straight up (zenith), negative = below horizon
+- **Azimuth**: 0deg = North, 90deg = East, 180deg = South, 270deg = West
 - **RA (Right Ascension)**: Like longitude on celestial sphere (0-24 hours)
-- **Dec (Declination)**: Like latitude on celestial sphere (-90° to +90°)
+- **Dec (Declination)**: Like latitude on celestial sphere (-90deg to +90deg)
 - **Julian Date**: Continuous count of days since 4713 BCE (technical timekeeping)
 
 ### Key Concepts
 
-- **Rise/Set Times**: Computed for standard horizon (0° altitude)
+- **Rise/Set Times**: Computed for standard horizon (0deg altitude)
 - **Transit**: Highest point in sky for the day
 - **Circumpolar**: Body never sets (visible all night)
 - **Trails**: 6-hour sampling shows planet motion over days/weeks
 
 ---
 
-## 🎯 Quick Activities
+##  Quick Activities
 
 ### For Kids (Age 8+)
 1. Track the Moon's position change each night
@@ -305,24 +309,24 @@ Complete constellation system based on Vedic astronomy:
 
 ---
 
-## 📞 Need Help?
+##  Need Help?
 
 ### Check These Resources
 
-1. **Module README**: `sky-module/README.md` - Full technical documentation
+1. **Module README**: `docs/source/sky-module/README.md` - Full technical documentation
 2. **Browser Console**: Open DevTools (F12), check console for errors
 3. **Memory Stats**: Control panel shows current memory usage
 
 ### Known Issues (Phase 1 MVP)
 
 - Trails don't show for bodies below horizon (by design)
-- Rise/set accuracy is ±15 minutes (acceptable for MVP)
+- Rise/set accuracy is +/-15 minutes (acceptable for MVP)
 - No real-time GPS support (manual location entry coming Phase 2)
 - No atmospheric refraction (optional Phase 2)
 
 ---
 
-## ✨ Summary
+##  Summary
 
 **You now have a complete, independent sky visualization tool with:**
 - 7 major solar system bodies
@@ -332,8 +336,10 @@ Complete constellation system based on Vedic astronomy:
 - Time travel capability
 - Minimal but complete UI
 
-**Enjoy exploring the sky!** 🌌
+**Enjoy exploring the sky!** 
 
 ---
 
-*Sky View MVP | Version 1.0 | © 2025*
+*Sky View MVP | Version 1.0 |  2025*
+
+

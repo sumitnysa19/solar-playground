@@ -1,4 +1,8 @@
-# 🌞 Interactive Solar System AI Tutor — Technical Implementation Plan
+#  Interactive Solar System AI Tutor - Technical Implementation Plan
+
+## Status Update (2026-01-01)
+
+This AI tutor plan is a separate roadmap and is not implemented in this repository.
 
 ## 1. Objective
 Develop a scalable, interactive, and cost-efficient **AI-powered Solar System Tutor** web app using React + Three.js (React Three Fiber), AWS AI services, and an on-prem speech recognition system.
@@ -60,12 +64,12 @@ flowchart TD
 
 | Phase | Goal | Major Deliverables | Duration |
 |--------|------|--------------------|-----------|
-| **Phase 1 (MVP)** | Text-based AI tutor + 3D visualization | R3F solar system, Bedrock Q&A, Kendra search, chat UI | 4–6 weeks |
+| **Phase 1 (MVP)** | Text-based AI tutor + 3D visualization | R3F solar system, Bedrock Q&A, Kendra search, chat UI | 4-6 weeks |
 | **Phase 2** | Add speech interactivity | Whisper STT, Polly TTS, WebRTC integration | 4 weeks |
 | **Phase 3** | Add game & missions | Spaceship navigation, task manager, score system | 6 weeks |
 | **Phase 4** | Scale & optimize | Cost monitoring, caching, ML model refinement | 4 weeks |
 
-Total Estimated: **16–20 weeks (5 months)** for complete v1 release.
+Total Estimated: **16-20 weeks (5 months)** for complete v1 release.
 
 ---
 
@@ -94,12 +98,12 @@ Total Estimated: **16–20 weeks (5 months)** for complete v1 release.
 ```
 
 ### 5.2 Core Libraries
-- **React Three Fiber** — 3D scene rendering
-- **drei** — helpers for lights, orbit controls
-- **Zustand** — lightweight state management
-- **Axios / AWS SDK** — Bedrock + Kendra APIs
-- **WebRTC** — audio streaming (STT/TTS)
-- **MQTT.js** — real-time text sync with backend
+- **React Three Fiber** - 3D scene rendering
+- **drei** - helpers for lights, orbit controls
+- **Zustand** - lightweight state management
+- **Axios / AWS SDK** - Bedrock + Kendra APIs
+- **WebRTC** - audio streaming (STT/TTS)
+- **MQTT.js** - real-time text sync with backend
 
 ---
 
@@ -108,8 +112,8 @@ Total Estimated: **16–20 weeks (5 months)** for complete v1 release.
 ### 6.1 Lambda / ECS (AI Gateway)
 **Responsibilities:**
 - Accept text queries via MQTT
-- Query **Kendra** → retrieve relevant context
-- Send contextual prompt → **Bedrock (Claude)**
+- Query **Kendra** -> retrieve relevant context
+- Send contextual prompt -> **Bedrock (Claude)**
 - Stream tokenized responses back over MQTT
 - Optionally trigger Polly for speech synthesis
 
@@ -120,7 +124,7 @@ pip install fastapi websockets openai-whisper
 ```
 **Functionality:**
 - Receive audio stream from browser
-- Decode → transcribe → publish text to MQTT topic
+- Decode -> transcribe -> publish text to MQTT topic
 - Manage concurrent sessions via UUIDs
 
 ### 6.3 MQTT Broker
@@ -140,8 +144,8 @@ pip install fastapi websockets openai-whisper
 ### 7.1 Hosting
 - **Frontend:** AWS Amplify (auto CI/CD + CloudFront CDN)
 - **Backend:**
-  - Light use → AWS Lambda
-  - Heavy concurrency → ECS Fargate or EC2 GPU for AI pipeline
+  - Light use -> AWS Lambda
+  - Heavy concurrency -> ECS Fargate or EC2 GPU for AI pipeline
 - **STT Server:**
   - On-prem GPU (RTX 3060/3070/3090) or local workstation
   - Dockerized for reproducibility
@@ -160,13 +164,13 @@ pip install fastapi websockets openai-whisper
 ## 8. Estimated Monthly Cost (1000 Daily Active Users)
 | Service | Est. Usage | Monthly Cost (USD) |
 |----------|------------|--------------------|
-| AWS Bedrock (Claude 3 Haiku) | 100K queries | $20–40 |
-| Amazon Kendra | 50K retrievals | $25–30 |
-| Amazon Polly | 10 hrs TTS | $5–10 |
-| Amplify Hosting + CloudFront | Moderate traffic | $10–15 |
-| MQTT Broker (EC2 / IoT Core) | ~1M msgs | $5–8 |
-| On-Prem Whisper (GPU power) | Local electricity | ~$10–20 |
-| **Total** |  | **$75–125 / month** |
+| AWS Bedrock (Claude 3 Haiku) | 100K queries | $20-40 |
+| Amazon Kendra | 50K retrievals | $25-30 |
+| Amazon Polly | 10 hrs TTS | $5-10 |
+| Amplify Hosting + CloudFront | Moderate traffic | $10-15 |
+| MQTT Broker (EC2 / IoT Core) | ~1M msgs | $5-8 |
+| On-Prem Whisper (GPU power) | Local electricity | ~$10-20 |
+| **Total** |  | **$75-125 / month** |
 
 ---
 
@@ -196,5 +200,6 @@ pip install fastapi websockets openai-whisper
 ## 12. Summary
 This plan defines a full-stack architecture combining **interactive 3D learning**, **AI-driven tutoring**, and **cost-optimized infrastructure**. The system scales from small pilot deployments (school labs) to global traffic (10K+ students) while maintaining privacy and affordability.
 
-**Estimated full-stack build timeline:** ~5 months with 2–3 developers.
+**Estimated full-stack build timeline:** ~5 months with 2-3 developers.
 **Monthly operational cost:** ~$100 for 1000 DAU, scalable linearly with usage.
+

@@ -1,73 +1,80 @@
 # Sky View MVP - Implementation Status
 
-**Date Started**: Current Session
-**Status**: ✅ CORE IMPLEMENTATION COMPLETE
+## Status Update (2026-01-01)
 
-## Completed Modules ✅
+Legacy status summary. The active runtime paths are:
+- `planetesimal.html` for the Solar System simulation
+- `nightsky/earth-sky/index.html` for the Earth-sky viewer
+
+**Date Started**: Current Session
+**Status**: legacy snapshot; not part of the default runtime
+
+## Completed Modules 
 
 ### Foundation Modules (100% Complete)
-1. **HelioStateProvider.js** ✅
+1. **HelioStateProvider.js** 
    - Lines: 265
    - Status: Complete and tested
    - Features: Caching, body definitions, J2000.0 orbital elements
    - Dependencies: functions.js (vector function)
 
-2. **CoordinateTransforms.js** ✅
+2. **CoordinateTransforms.js** 
    - Lines: 281
    - Status: Complete and tested
    - Features: 8 transformation methods, GST/LST computation
    - Dependencies: None (pure math)
 
-3. **Nakshatras.js** ✅
+3. **Nakshatras.js** 
    - Lines: 410+
    - Status: Complete
    - Features: All 28 nakshatras with star positions and constellation lines
    - Data: Complete nakshatra dataset exported
 
-4. **SkyDome.js** ✅
+4. **SkyDome.js** 
    - Lines: 200+
    - Status: Complete
    - Features: Inverted hemisphere, horizon line, cardinals, meridian grid
    - Dependencies: THREE.js
 
 ### Rendering Modules (100% Complete)
-5. **NakshatraManager.js** ✅
+5. **NakshatraManager.js** 
    - Lines: 300+
    - Status: Complete
    - Features: 28 constellation rendering, per-nakshatra visibility toggle
    - Dependencies: CoordinateTransforms, Nakshatras
 
-6. **TrailManager.js** ✅
+6. **TrailManager.js** 
    - Lines: 250+
    - Status: Complete
    - Features: 6-hour sampling, ring buffers, memory efficient
    - Dependencies: HelioStateProvider, CoordinateTransforms
 
-7. **RiseSetCalculator.js** ✅
+7. **RiseSetCalculator.js** 
    - Lines: 150+
    - Status: Complete
    - Features: 15-minute coarse algorithm, all edge cases
    - Dependencies: HelioStateProvider, CoordinateTransforms
 
 ### Orchestration (100% Complete)
-8. **SkyScene.js** ✅
+8. **SkyScene.js** 
    - Lines: 350+
    - Status: Complete
    - Features: Scene management, animation loop, body rendering
    - Dependencies: All above modules
 
-9. **SkyControls.js** ✅
+9. **SkyControls.js** 
    - Lines: 400+
    - Status: Complete
    - Features: Minimal UI, observer presets, toggles, time control
    - Dependencies: SkyScene
 
-10. **README.md** ✅
+10. **docs/source/sky-module/README.md** 
     - Status: Complete documentation
     - Content: Full API reference, usage examples, data flow
 
 ### Integration
-11. **skyview.html** ✅
+Legacy integration notes for the sky-module; not wired into the default runtime.
+11. **skyview.html** 
     - Status: Updated
     - Changes: Replaced old implementation with MVP module integration
     - Features: ES6 module imports, canvas initialization
@@ -90,7 +97,7 @@
 - [x] 7 Major Bodies (Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn)
 - [x] 28 Indian Nakshatras (complete constellation data)
 - [x] Daily Trails (6-hour sampling, ring buffer storage)
-- [x] Rise/Set Times (±15 minute coarse calculation)
+- [x] Rise/Set Times (+/-15 minute coarse calculation)
 - [x] Day-Mode Only (sunrise to sunset tracking)
 - [x] UTC Time (no timezone conversion)
 - [x] Observer Presets (7 major cities)
@@ -112,20 +119,22 @@
 ## Architecture Validation
 
 ### Isolation Verification
-- ✅ No modifications to planetesimal.html
-- ✅ No modifications to scripting.js
-- ✅ No modifications to functions.js
-- ✅ No modifications to existing assets
-- ✅ Separate THREE.js scene/renderer/camera
-- ✅ Independent animation loop
-- ✅ Dedicated canvas element
+-  No modifications to planetesimal.html
+-  No modifications to scripting.js
+-  No modifications to functions.js
+-  No modifications to existing assets
+-  Separate THREE.js scene/renderer/camera
+-  Independent animation loop
+-  Dedicated canvas element
 
-### Integration Points
-- ✅ HelioStateProvider correctly imports from functions.js
-- ✅ CoordinateTransforms standalone (no dependencies)
-- ✅ All modules can be tested individually
-- ✅ SkyScene orchestrates cleanly
-- ✅ SkyControls attaches UI without conflicts
+### Integration
+Legacy integration notes for the sky-module; not wired into the default runtime.
+Points
+-  HelioStateProvider correctly imports from functions.js
+-  CoordinateTransforms standalone (no dependencies)
+-  All modules can be tested individually
+-  SkyScene orchestrates cleanly
+-  SkyControls attaches UI without conflicts
 
 ## Testing Readiness
 
@@ -136,7 +145,9 @@
 - [x] RiseSetCalculator (can compare vs USNO)
 - [x] SkyDome (geometry validation)
 
-### Integration Testing Ready
+### Integration
+Legacy integration notes for the sky-module; not wired into the default runtime.
+Testing Ready
 - [x] Can initialize SkyScene
 - [x] Can update positions
 - [x] Can render to canvas
@@ -178,7 +189,7 @@
 
 ## Known Limitations (MVP Scope)
 
-- No atmospheric refraction (rise/set ±15 min accuracy acceptable)
+- No atmospheric refraction (rise/set +/-15 min accuracy acceptable)
 - No parallax (geocentric only)
 - No precession (J2000.0 epoch fixed)
 - No proper motion of stars
@@ -193,32 +204,32 @@
 
 | Criterion | Status |
 |-----------|--------|
-| All 7 bodies render | ✅ Code complete, needs testing |
-| All 28 nakshatras render | ✅ Code complete, needs testing |
-| Daily trails visible | ✅ Code complete, needs testing |
-| Rise/set times computed | ✅ Code complete, needs testing |
-| Observer presets work | ✅ Code complete, needs testing |
-| Time slider functional | ✅ Code complete, needs testing |
-| Play/pause animation works | ✅ Code complete, needs testing |
-| 60 FPS maintained | ✅ Code optimized, needs testing |
-| Memory <5 MB | ✅ Code optimized, needs testing |
-| Planetesimal.html safe | ✅ Verified (no modifications) |
-| Independent from existing | ✅ Verified (separate scene) |
+| All 7 bodies render |  Code complete, needs testing |
+| All 28 nakshatras render |  Code complete, needs testing |
+| Daily trails visible |  Code complete, needs testing |
+| Rise/set times computed |  Code complete, needs testing |
+| Observer presets work |  Code complete, needs testing |
+| Time slider functional |  Code complete, needs testing |
+| Play/pause animation works |  Code complete, needs testing |
+| 60 FPS maintained |  Code optimized, needs testing |
+| Memory <5 MB |  Code optimized, needs testing |
+| Planetesimal.html safe |  Verified (no modifications) |
+| Independent from existing |  Verified (separate scene) |
 
 ## File Structure
 
 ```
 sky-module/
-├── HelioStateProvider.js       [265 lines] - Ephemeris adapter + caching
-├── CoordinateTransforms.js     [281 lines] - Transform pipeline
-├── Nakshatras.js               [410 lines] - Constellation data (28)
-├── SkyDome.js                  [200 lines] - Visual foundation
-├── NakshatraManager.js         [300 lines] - Constellation rendering
-├── TrailManager.js             [250 lines] - Motion tracking
-├── RiseSetCalculator.js        [150 lines] - Horizon events
-├── SkyScene.js                 [350 lines] - Core orchestration
-├── SkyControls.js              [400 lines] - Minimal UI
-└── README.md                   [350 lines] - Full documentation
+ HelioStateProvider.js       [265 lines] - Ephemeris adapter + caching
+ CoordinateTransforms.js     [281 lines] - Transform pipeline
+ Nakshatras.js               [410 lines] - Constellation data (28)
+ SkyDome.js                  [200 lines] - Visual foundation
+ NakshatraManager.js         [300 lines] - Constellation rendering
+ TrailManager.js             [250 lines] - Motion tracking
+ RiseSetCalculator.js        [150 lines] - Horizon events
+ SkyScene.js                 [350 lines] - Core orchestration
+ SkyControls.js              [400 lines] - Minimal UI
+ docs/source/sky-module/README.md                   [350 lines] - Full documentation
 
 skyview.html                     [30 lines]  - Updated entry point
 
@@ -230,7 +241,7 @@ Total: ~2,600 lines of new code
 ### Browser
 - Modern browser with WebGL support
 - ES6 module support
-- Minimum 1024×1024 canvas resolution
+- Minimum 1024x1024 canvas resolution
 
 ### Network
 - CDN access for THREE.js (https://cdn.jsdelivr.net/npm/three@r128/)
@@ -272,3 +283,7 @@ Total: ~2,600 lines of new code
 **Finally**: Release and monitoring
 
 **Estimated Release**: Today if testing passes
+
+
+
+

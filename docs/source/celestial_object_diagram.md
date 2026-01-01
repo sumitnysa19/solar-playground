@@ -1,5 +1,13 @@
 # Celestial Object Diagram & Implementation Details
 
+## Status Update (2026-01-01)
+
+This diagram remains broadly accurate for the Solar System simulation pipeline.
+
+Current notes:
+- Earth axial tilt uses a fixed mean obliquity constant.
+- The Earth horizon disc now uses a stable tangent-plane basis (North/East/Up) instead of a pure lookAt orientation.
+
 ## Initialization and Update Notes
 
 - **Initial position/velocity:** Each body reads analytic orbital elements (semi-major axis, eccentricity, inclination, argument of periapsis, longitude of ascending node, mean anomaly/epoch) in `construction.js`, converts them to state vectors in meters and m/s inside `MakeStar` / `MakeMoon` / `MakeMinorMoon`, and passes them into the class constructors.
@@ -8,15 +16,15 @@
 - **Time source:** `hyper()` in `scripting.js` computes simulated seconds (`J_S`) from the UI-controlled speed multiplier and uses it for every update.
 - **Integration:** `SetPos` / `SetPosition` advance each body with simple propagation (Keplerian updates plus rotation increments) using `J_S`. Velocities stay in SI; positions are rescaled back to scene units for rendering.
 - **System drift:** The Sun carries a linear galactic drift (~230 km/s). Planets/moons inherit that translation in `planet.js:46`, keeping the whole system coherent as the star moves.
-- **Rendering:** After transforms, `composer.render` runs the render pipeline (RenderPass → UnrealBloomPass) every frame.
+- **Rendering:** After transforms, `composer.render` runs the render pipeline (RenderPass -> UnrealBloomPass) every frame.
 
 ## Object Creation Phase (construction.js)
 
 Each celestial body is exported from `construction.js` via factory functions:
 
-### `MakeStar(options)` — Creates a `stellar` class instance (Sun)
+### `MakeStar(options)` - Creates a `stellar` class instance (Sun)
 
-- Sets: `mass` (1.98847e30 kg), initial position (ecliptic [0,0,0]), color based on temperature (5778K → whitish)
+- Sets: `mass` (1.98847e30 kg), initial position (ecliptic [0,0,0]), color based on temperature (5778K -> whitish)
 - Configures: `luminosity`, lens flare intensity, point light properties
 - Initialization flag: `_prevJS = null` to avoid NaN in first velocity update
 - Example:
@@ -29,16 +37,16 @@ Each celestial body is exported from `construction.js` via factory functions:
   });
   ```
 
-### `MakeMoon(options)` — Creates a `moon` class instance (planets & major moons)
+### `MakeMoon(options)` - Creates a `moon` class instance (planets & major moons)
 
 - **Parent reference:** `sol` (heliocentric) or another moon (e.g., Earth for Moon)
 - **Orbital elements:** 
   - Semi-major axis `a` (AU)
-  - Eccentricity `e` (unitless, 0 ≤ e < 1)
-  - Inclination `i` (°, angle to ecliptic plane)
-  - Argument of periapsis `ω` (°, angle in orbit plane)
-  - Longitude of ascending node `Ω` (°, angle to ecliptic reference)
-  - Mean anomaly `M₀` (°, angular position at J2000.0 epoch)
+  - Eccentricity `e` (unitless, 0  e < 1)
+  - Inclination `i` (deg, angle to ecliptic plane)
+  - Argument of periapsis `` (deg, angle in orbit plane)
+  - Longitude of ascending node `` (deg, angle to ecliptic reference)
+  - Mean anomaly `M` (deg, angular position at J2000.0 epoch)
 - **Physical data:** Equatorial radius, polar radius, atmosphere height, axial tilt (RA/Dec of north pole), rotation period, temperature, mass, bump map scale
 - **Flags:** `majorLabel` (always visible), `cloudy` (render cloud layer), `tidalLock` (rotates to face parent)
 - Example:
@@ -49,12 +57,12 @@ Each celestial body is exported from `construction.js` via factory functions:
       color: "rgb(131, 151, 201)",
       majorLabel: true,
       cloudy: true,
-      Data: [e, 0, i, ω, Ω, 0, 0, M₀, 0, a_AU, 0, T_seconds, ...],
+      Data: [e, 0, i, , , 0, 0, M, 0, a_AU, 0, T_seconds, ...],
       Physical: [r_eq, r_pol, T_rot, h_atm, dec, ra, mass, bump_scale]
   });
   ```
 
-### `MakeMinorMoon(options)` — Creates a `minor_moon` class instance (dwarf planets, asteroids)
+### `MakeMinorMoon(options)` - Creates a `minor_moon` class instance (dwarf planets, asteroids)
 
 - Similar to `MakeMoon` but with reduced LOD (level of detail) meshes for distant rendering
 - Includes flags: `dwarfPlanet`, `barycenter`, `majorLabel`
@@ -76,59 +84,59 @@ The core orbital propagation uses **Keplerian mechanics** to convert from orbita
 
 ### Inputs
 ```
-M     — Parent body mass (kg)
-a     — Semi-major axis (m, stored as 1000 × AU in Data[9])
-e     — Eccentricity (unitless)
-i     — Inclination (radians, converted from degrees in Data[2])
-ω     — Argument of periapsis (radians, from Data[4])
-Ω     — Longitude of ascending node (radians, from Data[3])
-M₀    — Mean anomaly (radians, updated each frame via CurrentMa())
+M     - Parent body mass (kg)
+a     - Semi-major axis (m, stored as 1000 x AU in Data[9])
+e     - Eccentricity (unitless)
+i     - Inclination (radians, converted from degrees in Data[2])
+     - Argument of periapsis (radians, from Data[4])
+     - Longitude of ascending node (radians, from Data[3])
+M    - Mean anomaly (radians, updated each frame via CurrentMa())
 ```
 
 ### Process: Kepler's Equation Solver
 
 1. **Compute gravitational parameter:**
    ```
-   μ = G × M = 6.67408e-11 × parent_mass
-   n = √(μ/a³)  — mean motion (rad/s)
+    = G x M = 6.67408e-11 x parent_mass
+   n = (/a)  - mean motion (rad/s)
    ```
 
 2. **Solve eccentric anomaly iteratively** (Newton-Raphson, ~6 iterations):
    ```
-   ΔE = (E - e·sin(E) - M) / (1 - e·cos(E))
-   E_new = E - ΔE
-   (repeat until |ΔE| < 1e-12)
+   E = (E - esin(E) - M) / (1 - ecos(E))
+   E_new = E - E
+   (repeat until |E| < 1e-12)
    ```
 
 3. **Calculate 2D position in orbital plane:**
    ```
    x_w = a(cos(E) - e)
-   y_w = b·sin(E)    where b = a·√(1-e²)
-   r_w = a(1 - e·cos(E))  — distance from focus
+   y_w = bsin(E)    where b = a(1-e)
+   r_w = a(1 - ecos(E))  - distance from focus
    ```
 
 4. **Calculate 2D velocity in orbital plane:**
    ```
-   Ė = √(μ/a) / r_w = √(μ/a) / (a(1 - e·cos(E)))
-   ẋ_w = -a·Ė·sin(E)
-   ẏ_w = b·Ė·cos(E)
+    = (/a) / r_w = (/a) / (a(1 - ecos(E)))
+   _w = -asin(E)
+   _w = bcos(E)
    ```
 
 5. **Rotate from orbital frame to ecliptic frame** using 3D rotation matrices:
    ```
    [r_ecl]     [r_w]
-   [v_ecl]  =  P(ω, Ω, i) ×  [v_w]
+   [v_ecl]  =  P(, , i) x  [v_w]
    
    Where P is the product of three rotation matrices:
-   - P(Ω): rotation about Z by longitude of ascending node
+   - P(): rotation about Z by longitude of ascending node
    - P(i): rotation about new X by inclination
-   - P(ω): rotation about new Z by argument of periapsis
+   - P(): rotation about new Z by argument of periapsis
    ```
 
 ### Output
 ```
-Vector3D: [x_ecl, y_ecl, z_ecl, ẋ_ecl, ẏ_ecl, ż_ecl, ν]
-where ν is the true anomaly (used for orbit line highlighting)
+Vector3D: [x_ecl, y_ecl, z_ecl, _ecl, _ecl, _ecl, ]
+where  is the true anomaly (used for orbit line highlighting)
 ```
 
 ### Mean Anomaly Update (CurrentMa function)
@@ -142,7 +150,7 @@ function CurrentMa(m0_deg, mass, sma, epoch, time) {
     // Mean motion: average angular velocity (rad/s)
     n = Math.sqrt((6.67408e-11 * mass) / (sma * sma * sma));
     
-    // Current mean anomaly = initial + n × Δt
+    // Current mean anomaly = initial + n x t
     return m0_rad + n * (time - epoch);
 }
 ```
@@ -163,10 +171,10 @@ Called once during object construction:
      - `MA` (float): current true anomaly for position highlight
      - `colorA` (vec3): body's primary color
    - Uses `vertexShader()` to project orbit to ecliptic plane
-   - Uses `fragmentShader()` to fade from color at current position → black along rest of orbit
+   - Uses `fragmentShader()` to fade from color at current position -> black along rest of orbit
 
 2. **Create text sprite label:**
-   - Renders text to 100×100 canvas (white Arial, size 48)
+   - Renders text to 100x100 canvas (white Arial, size 48)
    - Creates `THREE.CanvasTexture` and `THREE.SpriteMaterial`
    - Sets `depthTest: false` and `sizeAttenuation: false` (always screen-sized)
    - Registers in scene with label group
@@ -193,7 +201,7 @@ const geometry = new THREE.SphereGeometry(
 );
 ```
 
-#### Material — `THREE.MeshPhongMaterial` with textures
+#### Material - `THREE.MeshPhongMaterial` with textures
 
 - **Base color texture:** `textures/{name}.basis`
   - Loaded asynchronously via `basisLoader`
@@ -202,7 +210,7 @@ const geometry = new THREE.SphereGeometry(
 
 - **Bump map:** `textures/{name}_bump.basis`
   - Loaded to `bumpMap` uniform
-  - `bumpScale = physical[7] / 50000000` (typically 0.1–1.0 for surface detail)
+  - `bumpScale = physical[7] / 50000000` (typically 0.1-1.0 for surface detail)
   - Multiplied with normal in fragment shader
 
 - **Displacement map:** Same bump texture
@@ -225,14 +233,14 @@ const geometry = new THREE.SphereGeometry(
 - Creates second sphere with radius = `physical[0] / 20000000 + physical[3] / 50000000`
 - Uses **custom `ShaderMaterial`** with rim lighting:
   - **Vertex shader:**
-    - Applies flattening for oblate spheroids (π/2 - atan(sqrt(1-e²)·tan(lat)))
+    - Applies flattening for oblate spheroids (/2 - atan(sqrt(1-e)tan(lat)))
     - Computes vertex normal and passes to fragment
   - **Fragment shader:**
     - Computes angle between fragment normal and camera direction
     - Evaluates **Fresnel approximation:** `F = sin(angle)^density`
     - Dark at center (looking straight down), bright at limb (grazing angle)
-    - Adds sun reflection: `max(0, dot(normal, sun_direction))^8 × sun_color`
-    - Output: `vec4(colorA × F + reflection, F)` (bright glow at terminator)
+    - Adds sun reflection: `max(0, dot(normal, sun_direction))^8 x sun_color`
+    - Output: `vec4(colorA x F + reflection, F)` (bright glow at terminator)
 
 ## Reference Frames & Positioning
 
@@ -240,26 +248,26 @@ const geometry = new THREE.SphereGeometry(
 
 ```
 solar_system (root)
-├─ Sun (stellar) @ ecliptic origin [0, 0, 0]
-│   ├─ Mercury (moon) @ heliocentric position
-│   ├─ Venus (moon) @ heliocentric position
-│   ├─ Earth (moon) @ heliocentric position
-│   │   └─ Moon (moon) @ geocentric (relative to Earth.Position)
-│   ├─ Mars (moon) @ heliocentric position
-│   ├─ Jupiter (moon) @ heliocentric position
-│   │   ├─ Io (moon) @ Jovicentric position
-│   │   ├─ Europa (moon) @ Jovicentric position
-│   │   ├─ Ganymede (moon) @ Jovicentric position
-│   │   └─ Callisto (moon) @ Jovicentric position
-│   ├─ Saturn (moon) @ heliocentric position
-│   │   ├─ Titan (moon) @ Saturnian position
-│   │   ├─ Rhea (moon) @ Saturnian position
-│   │   └─ [...other moons]
-│   ├─ Uranus (moon) @ heliocentric position
-│   ├─ Neptune (moon) @ heliocentric position
-│   └─ Pluto barycenter (minor_moon, binary) @ heliocentric position
-│       └─ Charon (moon) @ barycentric (relative to Pluto)
-└─ Asteroid cloud (Points) @ heliocentric positions
+ Sun (stellar) @ ecliptic origin [0, 0, 0]
+    Mercury (moon) @ heliocentric position
+    Venus (moon) @ heliocentric position
+    Earth (moon) @ heliocentric position
+       Moon (moon) @ geocentric (relative to Earth.Position)
+    Mars (moon) @ heliocentric position
+    Jupiter (moon) @ heliocentric position
+       Io (moon) @ Jovicentric position
+       Europa (moon) @ Jovicentric position
+       Ganymede (moon) @ Jovicentric position
+       Callisto (moon) @ Jovicentric position
+    Saturn (moon) @ heliocentric position
+       Titan (moon) @ Saturnian position
+       Rhea (moon) @ Saturnian position
+       [...other moons]
+    Uranus (moon) @ heliocentric position
+    Neptune (moon) @ heliocentric position
+    Pluto barycenter (minor_moon, binary) @ heliocentric position
+        Charon (moon) @ barycentric (relative to Pluto)
+ Asteroid cloud (Points) @ heliocentric positions
 ```
 
 ### Coordinate Transform
@@ -268,13 +276,13 @@ Each body's `SetPos()` computes Keplerian state vector in **SI units** (meters, 
 
 ```javascript
 // In SetPos():
-var pos = vector(parent_mass, sma, e, i, ω, Ω, M(t));
-// pos = [x_m, y_m, z_m, vx, vy, vz, ν]  in meters & m/s
+var pos = vector(parent_mass, sma, e, i, , , M(t));
+// pos = [x_m, y_m, z_m, vx, vy, vz, ]  in meters & m/s
 
 // In SetPosition():
 this.Position = new THREE.Vector3(pos[0], pos[2], -pos[1]);
-this.Position.divideScalar(10000000);      // m → scene units (1 unit = 1e7 m)
-this.Position.add(this.parent.Position);   // Parent-relative → absolute in scene
+this.Position.divideScalar(10000000);      // m -> scene units (1 unit = 1e7 m)
+this.Position.add(this.parent.Position);   // Parent-relative -> absolute in scene
 
 this.Velocity = new THREE.Vector3(pos[3], pos[5], -pos[4]);  // m/s
 this.Velocity.add(this.parent.Velocity);   // Inherit parent velocity
@@ -284,18 +292,18 @@ this.Velocity.add(this.parent.Velocity);   // Inherit parent velocity
 
 ### Axial Orientation & Rotation
 
-#### Fixed Rotation (RA/Dec → Ecliptic)
+#### Fixed Rotation (RA/Dec -> Ecliptic)
 
-The `CelestialToEcliptic(declination, rightAscension)` function applies a fixed rotation matrix corresponding to Earth's mean obliquity (~23.439°):
+The `CelestialToEcliptic(declination, rightAscension)` function applies a fixed rotation matrix corresponding to Earth's mean obliquity (~23.439deg):
 
 ```javascript
 function CelestialToEcliptic(dec, ra) {
     // Converts from celestial equatorial (RA/Dec) to ecliptic coordinates
     // Returns [rotation_y_radians, rotation_z_radians] for mesh.rotateY/Z
-    const ε = 23.439 * Math.PI / 180;  // Mean obliquity
+    const  = 23.439 * Math.PI / 180;  // Mean obliquity
     return [
         ra,
-        -Math.atan2(Math.cos(ra) * Math.sin(ε), 1)
+        -Math.atan2(Math.cos(ra) * Math.sin(), 1)
     ];
 }
 ```
@@ -336,7 +344,7 @@ if (this.cloudy) {
 
 ## Runtime Update Cycle
 
-### Time Computation (scripting.js: `onTimerTick()` → `update()`)
+### Time Computation (scripting.js: `onTimerTick()` -> `update()`)
 
 Called via `setInterval(onTimerTick, 16)` (~60 FPS, but decoupled from render):
 
@@ -360,10 +368,10 @@ J_S = J_D * 86400;                                       // Julian Seconds (seco
 ### Time Rate Controls (UI & Keyboard)
 
 - **Slider:** Discrete rates: 1 s/s (real-time), 10 s/s, 60 s/s, 300 s/s, 1 day/s, 10 day/s, 100 day/s, 365 day/s, 3650 day/s
-- **Accelerate:** `,` key → `time_rate *= 1.2` (or 1.05 for large values)
-- **Decelerate:** `.` key → `time_rate *= 0.8`
-- **Reverse:** `/` key → `time_rate *= -1` (enables backward simulation)
-- **Pause:** `K` key → `paused = !paused` (freezes `time_mod`, keeping current J_D fixed)
+- **Accelerate:** `,` key -> `time_rate *= 1.2` (or 1.05 for large values)
+- **Decelerate:** `.` key -> `time_rate *= 0.8`
+- **Reverse:** `/` key -> `time_rate *= -1` (enables backward simulation)
+- **Pause:** `K` key -> `paused = !paused` (freezes `time_mod`, keeping current J_D fixed)
 
 ### Animation Loop (scripting.js: `animate()`)
 
@@ -372,7 +380,7 @@ Executed every browser frame via `renderer.setAnimationLoop(animate)` (~60 FPS):
 ```
 1. Render frame:
    if (post_processing) {
-       composer.render();  // RenderPass → UnrealBloomPass (bloom effect)
+       composer.render();  // RenderPass -> UnrealBloomPass (bloom effect)
    } else {
        renderer.render(scene, camera);
    }
@@ -454,7 +462,7 @@ moon.SetPos = function() {
         )
     );
 
-    // pos = [x_m, y_m, z_m, vx, vy, vz, ν_true]
+    // pos = [x_m, y_m, z_m, vx, vy, vz, _true]
 
     // Convert to scene units and add parent position
     this.Position = new THREE.Vector3(pos[0], pos[2], -pos[1]);
@@ -577,9 +585,9 @@ stellar.update = function() {
 ```
 
 **Reference parameters:**
-- **Galactocentric radius:** R₀ ≈ 8.2 kpc ≈ 2.53×10²⁰ m
-- **Circular speed:** v ≈ 230 km/s (230,000 m/s) near the Local Standard of Rest
-- **Orbital period:** T ≈ 220 Myr (time to complete galactic orbit)
+- **Galactocentric radius:** R  8.2 kpc  2.53x10 m
+- **Circular speed:** v  230 km/s (230,000 m/s) near the Local Standard of Rest
+- **Orbital period:** T  220 Myr (time to complete galactic orbit)
 - **Simulation approach:** Local **linear drift** (not full circular orbit) suitable for timescales < 1 Myr
 
 ## Geometry & Rendering
@@ -590,7 +598,7 @@ Creates `THREE.LineSegments` with procedural geometry and custom shaders:
 
 ```javascript
 function MakeOrbit_2(data, color) {
-    // data = [a (AU), e, i, ω, Ω, ...]
+    // data = [a (AU), e, i, , , ...]
     
     // Convert to scene units and compute ellipse geometry
     const a_AU = data[0];
@@ -629,7 +637,7 @@ function MakeOrbit_2(data, color) {
             varying float vDist;
             
             void main() {
-                // Highlight region near true anomaly (±0.1 rad)
+                // Highlight region near true anomaly (+/-0.1 rad)
                 float intensity = exp(-vDist * vDist / 0.02);
                 gl_FragColor = vec4(colorA * intensity, 1.0);
             }
@@ -641,9 +649,9 @@ function MakeOrbit_2(data, color) {
 }
 ```
 
-The orbit shader highlights the body's current position (true anomaly ν):
+The orbit shader highlights the body's current position (true anomaly ):
 - Fragment shader evaluates distance to position vertex
-- Fades from `colorA` (body color) → black along rest of orbit
+- Fades from `colorA` (body color) -> black along rest of orbit
 - Provides visual feedback on current location in orbital period
 
 ### Atmosphere Rendering (shaders.js)
@@ -728,7 +736,7 @@ function renderFrame() {
 ```
 
 **UnrealBloomPass settings:**
-- **Strength:** 0–10 (UI slider for bloom intensity)
+- **Strength:** 0-10 (UI slider for bloom intensity)
 - **Radius:** Auto-adjusted by camera distance from target
 - **Threshold:** 0.0 (all pixels contribute to bloom)
 - **Auto-exposure:** Tied to camera distance (dim when zoomed in, bright when far)
@@ -817,7 +825,7 @@ if (travelling) {
 **Animation characteristics:**
 - Duration: ~1 second for typical distances
 - Acceleration: Exponential damping (1/10 factor per frame)
-- Arrival condition: Within 2× camera minimum distance
+- Arrival condition: Within 2x camera minimum distance
 - Interruptible: User can restart animation or use other camera controls
 
 ---
@@ -830,18 +838,18 @@ Orbital and physical parameters stored in a single array:
 
 ```javascript
 Data = [
-    0:  eccentricity (e)                  // 0 ≤ e < 1
+    0:  eccentricity (e)                  // 0  e < 1
     1:  (reserved)
     2:  inclination (degrees)             // Angle to ecliptic plane
-    3:  longitude of ascending node (Ω)   // Degrees
-    4:  argument of periapsis (ω)         // Degrees
+    3:  longitude of ascending node ()   // Degrees
+    4:  argument of periapsis ()         // Degrees
     5:  (reserved)
     6:  (reserved)
-    7:  mean anomaly at epoch (M₀)        // Degrees at J2000.0
+    7:  mean anomaly at epoch (M)        // Degrees at J2000.0
     8:  (reserved)
     9:  semi-major axis (AU)              // Semi-major axis
     10: (reserved)
-    11: orbital period (seconds)          // P = 2π√(a³/μ)
+    11: orbital period (seconds)          // P = 2(a/)
     12-14: (reserved)
 ]
 ```
@@ -931,13 +939,13 @@ skyBox.frustumCulled = false;                 // Sky sphere always rendered
 Pre-computed rotation matrices for minor bodies:
 
 ```javascript
-// Stored in test[2–8]
-test[2] = cos(Ω),  test[3] = sin(Ω);  // Rotation about Z
+// Stored in test[2-8]
+test[2] = cos(),  test[3] = sin();  // Rotation about Z
 test[4] = cos(i),  test[5] = sin(i);  // Rotation about X
-test[6] = cos(ω),  test[7] = sin(ω);  // Rotation about Z
+test[6] = cos(),  test[7] = sin();  // Rotation about Z
 
 // Fast path with 2 Newton iterations instead of 6
-function vector_opt_2(mass, a, e, i, ω, Ω, M) {
+function vector_opt_2(mass, a, e, i, , , M) {
     // ... optimized Kepler solver
 }
 ```
@@ -1011,3 +1019,4 @@ graph TD
         Z2 --> Screen;
     end
 ```
+

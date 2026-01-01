@@ -1,5 +1,15 @@
 # Earth Sky Simulation Extension Proposal (Extended & Refined)
 
+## Status Update (2026-01-01)
+
+This proposal is largely implemented in `nightsky/earth-sky/`.
+
+Current state:
+- Observer-based sky dome, RA/Dec to Alt/Az, and LST calculations are implemented.
+- Mean obliquity is used as a fixed constant; nutation and precession are not modeled.
+- Local Timeanddate datasets are supported when present; no direct remote fetch is required.
+- The Solar System app can broadcast lat/lon for correlation with the sky viewer.
+
 ## Executive Summary
 
 This proposal adds **observer-based sky rendering** to the existing heliocentric simulation, allowing users to see the **actual sky from any Earth location and time**. The architecture leverages the existing heliocentric engine, adds coordinate transformations, and introduces trail tracking for celestial bodies. The system is modular, educational, and production-ready.
@@ -15,42 +25,42 @@ This proposal adds **observer-based sky rendering** to the existing heliocentric
 ```
 ------------------------------------------------------------------
                   Earth Sky Module                        
--------------------------------------------------------‚
-â”‚  User Input Layer                                        â”‚
-â”‚  â”œâ”€ Observer Position (lat, lon, elev)                 â”‚
-â”‚  â”œâ”€ Date/Time Selection                                 â”‚
-â”‚  â””â”€ Display Mode (daily, monthly, yearly)              â”‚
-â”‚         â”‚                                                â”‚
-â”‚         â†“                                                â”‚
-â”‚  Coordinate Transformation Engine                        â”‚
-â”‚  â”œâ”€ Heliocentric (from scripting.js)                   â”‚
-â”‚  â”œâ”€ Geocentric (subtract Earth position)                â”‚
-â”‚  â”œâ”€ Ecliptic â†’ Equatorial (obliquity rotation)         â”‚
-â”‚  â”œâ”€ Equatorial â†’ Horizontal (observer-based)            â”‚
-â”‚  â””â”€ Altitude/Azimuth (Az, Alt)                         â”‚
-â”‚         â”‚                                                â”‚
-â”‚         â†“                                                â”‚
-â”‚  Sky Rendering Engine                                    â”‚
-â”‚  â”œâ”€ Sky Dome (inverted sphere, stars)                  â”‚
-â”‚  â”œâ”€ Celestial Body Markers (Sun, Moon, planets)        â”‚
-â”‚  â”œâ”€ Horizon Line (altitude = 0 degrees)                â”‚
-â”‚  â”œâ”€ Cardinal Directions (N, E, S, W)                   â”‚
-â”‚  â””â”€ Meridian & Altitude Grid (optional)                â”‚
-â”‚         â”‚                                                â”‚
-â”‚         â†“                                                â”‚
-â”‚  Trail & Analysis Engine                                â”‚
-â”‚  â”œâ”€ Real-time Path Traces                              â”‚
-â”‚  â”œâ”€ Rise/Set Times Computation                         â”‚
-â”‚  â”œâ”€ Retrograde Detection                               â”‚
-â”‚  â””â”€ Analemma Computation (Sun only)                    â”‚
-â”‚         â”‚                                                â”‚
-â”‚         â†“                                                â”‚
-â”‚  Interactive Controls                                    â”‚
-â”‚  â”œâ”€ Time Scrubber (date/time selection)                â”‚
-â”‚  â”œâ”€ Location Picker (interactive map)                  â”‚
-â”‚  â”œâ”€ Trail Toggle (day/month/year)                      â”‚
-â”‚  â””â”€ Visibility Filters (which bodies to show)          â”‚
-â”‚                                                          â”‚
+-------------------------------------------------------'
+"'  User Input Layer                                        "'
+"'  "" Observer Position (lat, lon, elev)                 "'
+"'  "" Date/Time Selection                                 "'
+"'  """ Display Mode (daily, monthly, yearly)              "'
+"'         "'                                                "'
+"'         "                                                "'
+"'  Coordinate Transformation Engine                        "'
+"'  "" Heliocentric (from scripting.js)                   "'
+"'  "" Geocentric (subtract Earth position)                "'
+"'  "" Ecliptic ' Equatorial (obliquity rotation)         "'
+"'  "" Equatorial ' Horizontal (observer-based)            "'
+"'  """ Altitude/Azimuth (Az, Alt)                         "'
+"'         "'                                                "'
+"'         "                                                "'
+"'  Sky Rendering Engine                                    "'
+"'  "" Sky Dome (inverted sphere, stars)                  "'
+"'  "" Celestial Body Markers (Sun, Moon, planets)        "'
+"'  "" Horizon Line (altitude = 0 degrees)                "'
+"'  "" Cardinal Directions (N, E, S, W)                   "'
+"'  """ Meridian & Altitude Grid (optional)                "'
+"'         "'                                                "'
+"'         "                                                "'
+"'  Trail & Analysis Engine                                "'
+"'  "" Real-time Path Traces                              "'
+"'  "" Rise/Set Times Computation                         "'
+"'  "" Retrograde Detection                               "'
+"'  """ Analemma Computation (Sun only)                    "'
+"'         "'                                                "'
+"'         "                                                "'
+"'  Interactive Controls                                    "'
+"'  "" Time Scrubber (date/time selection)                "'
+"'  "" Location Picker (interactive map)                  "'
+"'  "" Trail Toggle (day/month/year)                      "'
+"'  """ Visibility Filters (which bodies to show)          "'
+"'                                                          "'
 ----------------------------------------------------------------------------------------------
 ```
 
@@ -109,7 +119,7 @@ The MVP focuses on core functionality without Stellarium-parity features. These 
 - Static star field: 2,000 brightest stars with uniform sizing (no magnitude-based appearance)
 - Sky dome: horizon line + cardinal directions (N, E, S, W) only
 - Daily sky traces: day mode only with 6-hour coarse sampling (4 points per day per body)
-- Rise/set times: ±15 minute accuracy (geometric, no refraction)
+- Rise/set times: +/-15 minute accuracy (geometric, no refraction)
 - UI controls: minimal (play/pause, time slider, observer preset dropdown, constellation toggle)
 - Performance: 60 FPS with 7 body trails and Nakshatra constellation lines enabled
 
@@ -146,7 +156,7 @@ Once MVP is stable and validated, Phase 2 adds advanced features for Stellarium-
 
 **Ephemeris fidelity:** Clarify ephemeris source (current analytic elements vs higher-precision sets like VSOP/ELP/DE); include expected error bounds and validation targets.
 
-**Time scales:** Specify handling of UTC vs UT1 and Î”T; note that precise sidereal time ideally uses UT1â€”document approximation if using UTC.
+**Time scales:** Specify handling of UTC vs UT1 and "T; note that precise sidereal time ideally uses UT1"document approximation if using UTC.
 
 **Stars and constellations:** Define star catalog source (e.g., HYG), magnitude use, optional proper motion handling; clarify constellation dataset usage and limits.
 
@@ -317,27 +327,27 @@ The full transformation pipeline from heliocentric to observer-local coordinates
 ```
 Step 1: Heliocentric Position
         Bodies from existing heliocentric simulation
-                 â†“
+                 "
 Step 2: Geocentric (subtract Earth position)
         Mars_geocentric = Mars_helio - Earth_helio
-                 â†“
-Step 3: Ecliptic â†’ Equatorial (obliquity rotation)
+                 "
+Step 3: Ecliptic ' Equatorial (obliquity rotation)
         Rotate by 23.439 degrees
-                 â†“
+                 "
 Step 4: RA/Dec Conversion
         Convert Cartesian to spherical coordinates
-                 â†“
+                 "
 Step 5: Greenwich Sidereal Time (Earth rotation)
         GST = f(Julian Date)
-                 â†“
+                 "
 Step 6: Local Sidereal Time (observer longitude)
         LST = GST + longitude
-                 â†“
-Step 7: Equatorial â†’ Horizontal (observer latitude)
-        RA/Dec + LST â†’ Altitude/Azimuth
-                 â†“
+                 "
+Step 7: Equatorial ' Horizontal (observer latitude)
+        RA/Dec + LST ' Altitude/Azimuth
+                 "
 Step 8: Sky Dome Projection
-        Alt/Az â†’ 3D scene coordinates on inverted sphere
+        Alt/Az ' 3D scene coordinates on inverted sphere
 ```
 
 ---
@@ -398,7 +408,7 @@ class SiderealTime {
 
 ## 6. Full Sky Projection Mathematics
 
-### Step 1: Ecliptic â†’ Equatorial Rotation
+### Step 1: Ecliptic ' Equatorial Rotation
 
 ```javascript
 class CoordinateFrameTransforms {
@@ -421,7 +431,7 @@ class CoordinateFrameTransforms {
 }
 ```
 
-### Step 2: Cartesian â†’ Right Ascension / Declination
+### Step 2: Cartesian ' Right Ascension / Declination
 
 ```javascript
 function cartesianToRaDec(vec) {
@@ -438,7 +448,7 @@ function cartesianToRaDec(vec) {
 }
 ```
 
-### Step 3: RA / Dec â†’ Altitude / Azimuth
+### Step 3: RA / Dec ' Altitude / Azimuth
 
 This is the critical transformation that depends on observer location and time.
 
@@ -559,7 +569,7 @@ class SkyDomeProjector {
 ## 7.1 Sky Dome Layering & Culling
 
 - Layering: background starfield (static/dim), constellation lines/labels (toggle), horizon + cardinal markers, grid overlays (alt-az), body markers with size scaled by brightness.
-- Horizon culling: hide or fade bodies with `alt < 0` (optionally clamp to âˆ’5Â° to show â€œjust below horizonâ€ with dim color).
+- Horizon culling: hide or fade bodies with `alt < 0` (optionally clamp to '5deg to show just below horizon with dim color).
 - Brightness: magnitude-based sizing/opacity (precomputed mag table for planets, Sun/Moon special cases), global brightness slider applies exposure multiplier to marker materials.
 - Cardinal/compass: 2D overlay compass rose aligned to camera yaw; 3D labels at horizon points (N/E/S/W) pinned in view space.
 
@@ -570,7 +580,7 @@ class SkyDomeProjector {
 **MVP approach (simple, fast):**
 - Use a lightweight static star catalog: brightest ~2,000 stars from HYG (public domain).
 - Star data: RA, Dec, visual magnitude (V), optional Bayer name.
-- Projection: convert RA/Dec â†’ Alt/Az â†’ dome position on each frame (cached RA/Dec vectors).
+- Projection: convert RA/Dec ' Alt/Az ' dome position on each frame (cached RA/Dec vectors).
 - Rendering: size stars by magnitude (brighter = larger points); dim very faint stars (mag > 6).
 - Toggle: show/hide stars via UI checkbox.
 - No proper motion in MVP.
@@ -578,7 +588,7 @@ class SkyDomeProjector {
 **Constellations (Phase 2 feature - NOT in MVP):**
 - Constellation lines and labels deferred to Phase 2.
 - When implemented, use d3-celestial constellation data (MIT licensed) or adapt VirtualSky outlines (mark with clear licensing comments).
-- Rendering: `LineSegments` on the dome; projected RA/Dec â†’ Alt/Az; cached vertices.
+- Rendering: `LineSegments` on the dome; projected RA/Dec ' Alt/Az; cached vertices.
 - Density control and fade near horizon for Phase 2 UX.
 
 **Phase 2 implementation:**
@@ -767,14 +777,14 @@ class RiseSetCalculator {
       
       // Detect rise (altitude crosses from negative to positive)
       if (previousAlt !== null && previousAlt < 0 && alt >= 0 && !foundRise) {
-        results.riseJD = previousJd; // Â±15 minutes
+        results.riseJD = previousJd; // +/-15 minutes
         foundRise = true;
         results.visible = true;
       }
       
       // Detect set (altitude crosses from positive to negative)
       if (previousAlt !== null && previousAlt >= 0 && alt < 0 && foundRise && !foundSet) {
-        results.setJD = testJd; // Â±15 minutes
+        results.setJD = testJd; // +/-15 minutes
         foundSet = true;
       }
       
@@ -854,7 +864,7 @@ class RetrogradeMeter {
 ## 9.1 Accuracy Considerations (MVP vs Phase 2)
 
 **MVP approach (geometric, no corrections):**
-- Atmospheric refraction: NOT applied in MVP. Geometric horizon (alt = 0 degrees exactly). Rise/set times accurate to ±15 minutes.
+- Atmospheric refraction: NOT applied in MVP. Geometric horizon (alt = 0 degrees exactly). Rise/set times accurate to +/-15 minutes.
 - Parallax: NOT applied in MVP. All bodies treated as if viewed from Earth's center.
 - Time scale: assume UTC for all JD conversions; GST formula uses UTC directly (acceptable for visualization).
 - Aberration/light-time: omitted in MVP; phase 2 optional enhancement.
@@ -862,7 +872,7 @@ class RetrogradeMeter {
 **Phase 2 enhancements:**
 - Optional atmospheric refraction toggle (Bennett formula, ~34 arcmin at horizon).
 - Optional topocentric parallax for Moon/planets using observer elevation.
-- Optional UT1 support for high-precision GST (requires ΔT table).
+- Optional UT1 support for high-precision GST (requires T table).
 - Optional aberration and light-time corrections.
 
 ---
@@ -902,21 +912,21 @@ class RetrogradeMeter {
 
 ```
 sky-module/
-â”œâ”€â”€ coordinate-transforms.js
-â”œâ”€â”€ sidereal-time.js
-â”œâ”€â”€ sky-dome.js
-â”œâ”€â”€ trail-manager.js
-â”œâ”€â”€ rise-set-calculator.js
-â”œâ”€â”€ observer-input.js
-â”œâ”€â”€ sky-ui.js
-â””â”€â”€ sky-scene.js
+""" coordinate-transforms.js
+""" sidereal-time.js
+""" sky-dome.js
+""" trail-manager.js
+""" rise-set-calculator.js
+""" observer-input.js
+""" sky-ui.js
+"""" sky-scene.js
 ```
 
 ---
 
 ## 11.1 Module Responsibilities (sky-module/)
 
-- `coordinate-transforms.js`: heliocentric â†’ geocentric â†’ equatorial â†’ horizontal; includes RA/Dec helpers.
+- `coordinate-transforms.js`: heliocentric ' geocentric ' equatorial ' horizontal; includes RA/Dec helpers.
 - `sidereal-time.js`: GST/LST/hour angle calculations.
 - `sky-dome.js`: dome geometry/materials, horizon line, grid overlays, star sprites (optional).
 - `trail-manager.js`: trail sampling, buffers, decimation, and rendering lines.
@@ -965,14 +975,14 @@ sky-module/
 ## 12.1 Integration Test Matrix
 
 - Presets sanity: verify Sun rise due east/set due west on equinox for equator and mid-latitude locations.
-- Polar edge cases: high latitudes (e.g., TromsÃ¸) where Sun does not set/rise near solstice; ensure trails and rise/set reporting handle â€œno rise/setâ€.
+- Polar edge cases: high latitudes (e.g., Troms) where Sun does not set/rise near solstice; ensure trails and rise/set reporting handle no rise/set.
 - Time reversal: run negative time multiplier and confirm trails reverse correctly and no NaNs in LST/hour angle.
 - Horizon culling: confirm bodies vanish below horizon and reappear on expected altitudes; labels match markers.
 - Performance: target 60 FPS with trails enabled for major bodies; measure with and without bloom/overlays.
 - Ephemeris validation: cross-check Sun/Moon/planets alt/az against Stellarium or JPL Horizons for selected dates (e.g., equinox, solstice, Mars opposition) and record maximum angular error; validate rise/set within acceptable minute-level tolerance when refraction enabled.
 - Atmospheric/visual validation: confirm twilight gradient changes with Sun altitude, refraction toggle shifts rise/set times as expected, and night mode/FOV controls function without impacting accuracy.
 - Manual cross-checks vs public sky sites:
-  - Compare current sky (now) alt/az and sky map against Stellarium Web and Sky & Telescopeâ€™s Interactive Sky Chart; verify markers match within a small angular tolerance.
+  - Compare current sky (now) alt/az and sky map against Stellarium Web and Sky & Telescopes Interactive Sky Chart; verify markers match within a small angular tolerance.
   - Pick future/past dates (e.g., next Mars opposition, past lunar eclipse) and confirm positions/tracks align visually with Stellarium Web.
   - Compare rise/set/transit times and Moon phase fraction/illumination with U.S. Naval Observatory/Astronomy apps and Stellarium Web.
   - For constellations, verify line work and labels match d3-celestial output or VirtualSky for the same observer/time/FOV.
@@ -983,7 +993,7 @@ sky-module/
 
 ### Memory Footprint (Corrected Estimate)
 - Star field (2,000 brightest stars): ~80 KB
-- Per body trail (1-year, 6h samples): ~24 KB (1,460 points Ã— 4 floats Ã— 4 bytes each)
+- Per body trail (1-year, 6h samples): ~24 KB (1,460 points - 4 floats - 4 bytes each)
 - 7 major bodies: ~170 KB total trails
 - Three.js LineBuffers & geometry overhead: ~1.5 MB
 - **Total: ~2-3 MB with optimization** (including Three.js overhead and margin)
@@ -1009,7 +1019,7 @@ This proposal provides a complete, modular Earth sky simulation with **no Stella
 - Reuses existing heliocentric engine via `HelioStateProvider` adapter
 - Handles any Earth location & time (observer presets + custom)
 - Traces celestial paths (daily/monthly/yearly modes)
-- Computes rise/set times (coarse Â±15 min approach, sufficient for visualization)
+- Computes rise/set times (coarse +/-15 min approach, sufficient for visualization)
 - Detects retrograde motion periods
 - Static star field (2,000 brightest stars)
 - Horizon/cardinal direction overlay
@@ -1017,21 +1027,21 @@ This proposal provides a complete, modular Earth sky simulation with **no Stella
 
 **MVP Implementation Timeline (10-15 working days):**
 1. Bootstrap & architecture (1-2 days): HelioStateProvider integration, module structure
-2. Coordinate transforms (2-3 days): heliocentricâ†’geocentricâ†’equatorialâ†’horizontal pipeline
+2. Coordinate transforms (2-3 days): heliocentric'geocentric'equatorial'horizontal pipeline
 3. Sky dome rendering (2-3 days): horizon, grid, cardinal directions, star sprites
 4. Observer input & UI (2 days): presets, time picker, location input, basic controls
 5. Trails & markers (2-3 days): body markers, trail rendering, decimation logic
 6. Rise/set & validation (2-3 days): coarse sampling algorithm, cross-check vs Stellarium
 
 **MVP Success Criteria:**
-- âœ“ 60 FPS with trails enabled
-- âœ“ Rise/set times within Â±15 minutes of Stellarium (no refraction)
-- âœ“ Retrograde motion correctly detected and visualized
-- âœ“ All 7 major bodies visible and tracked correctly
-- âœ“ Observer preset locations (5+) preconfigured and validated
-- âœ“ Trails work smoothly across daily/monthly/yearly modes
-- âœ“ Manual cross-check vs Stellarium Web for current date passes
-- âœ“ Memory footprint <5 MB including Three.js overhead
+- " 60 FPS with trails enabled
+- " Rise/set times within +/-15 minutes of Stellarium (no refraction)
+- " Retrograde motion correctly detected and visualized
+- " All 7 major bodies visible and tracked correctly
+- " Observer preset locations (5+) preconfigured and validated
+- " Trails work smoothly across daily/monthly/yearly modes
+- " Manual cross-check vs Stellarium Web for current date passes
+- " Memory footprint <5 MB including Three.js overhead
 
 ---
 
@@ -1043,7 +1053,7 @@ This proposal provides a complete, modular Earth sky simulation with **no Stella
 - Precession/nutation corrections (long-term accuracy, 0.01 degree impact)
 - Constellation lines & labels (visual context, requires constellation dataset)
 - Topocentric parallax (Moon/planets, <1 degree improvement for most observers)
-- UT1 time scale support (high-precision GST, requires Î”T table)
+- UT1 time scale support (high-precision GST, requires "T table)
 - Night mode & light adaptation (visual polish, no functional impact)
 
 **Note:** These features provide marginal benefit for visualization use cases; reserved for Phase 2 based on user feedback priority.
@@ -1053,5 +1063,120 @@ This proposal provides a complete, modular Earth sky simulation with **no Stella
 With exact Earth latitude, longitude, elevation, and time input, Phase 1 delivers a physically accurate Earth sky simulation that traces the full apparent motion of planets across hours, days, months, and years, using your existing heliocentric engine without modification.
 
 **This architecture is scalable, modular, and achieves MVP in 2-3 weeks with no Stellarium-parity scope creep.**
+
+---
+
+## 15. Vedic Astrology Visualization Extension (Concept + Plan)
+
+This section extends the existing Earth-sky and heliocentric views with a sidereal (star-fixed) rasi framework. It follows the requested format and keeps astronomy logic separate from rendering/UI.
+
+### 15.1 Project Understanding Summary
+
+- Two runtimes exist: solar system (`planetesimal.html` + `scripting.js`) and Earth-sky (`nightsky/earth-sky/index.html` + `scene/scene.js`).
+- Solar system uses ecliptic-based coordinates with a left-handed mapping and a time_rate-driven simulation clock.
+- Earth-sky uses JD -> GMST/LST -> RA/Dec -> Alt/Az, rotating a sky dome by LST and placing bodies in Alt/Az.
+- Existing components reusable for rasi work: `functions.js` Kepler solver, `astro/time.js`, `astro/coordinates.js`, `scene/labelSprite.js`, and the sky dome pipeline.
+- There is postMessage sync between views for time and lat/lon; we can keep that intact.
+
+### 15.2 Gaps & Risks
+
+- Current ephemerides are low precision and use fixed obliquity; no precession/nutation. This affects long-term sidereal alignment.
+- No sidereal zodiac reference exists; a clear ayanamsa or fixed star reference is required.
+- Coordinate systems differ between solar system and earth-sky; rasi logic must define which space it consumes.
+- `Sd79Adapter` streams raw SD79 positions without unit normalization; rasi math must not assume AU unless normalized.
+
+### 15.3 Conceptual Model
+
+#### Celestial Framework
+
+- Use ecliptic longitude as the base axis for rasi bands.
+- Sidereal zodiac is fixed to stars: define a reference offset (ayanamsa or fixed-star zero point).
+- Earth rotation only affects topocentric Alt/Az, not the rasi assignment itself.
+- Transformation pipeline:
+  heliocentric ecliptic -> geocentric ecliptic -> equatorial -> RA/Dec -> Alt/Az.
+
+#### Rasi Visualization
+
+- 12 fixed 30-degree bands on the celestial sphere, aligned to the ecliptic.
+- Optional future grid:
+  - 1-degree ticks within each rasi.
+  - Nakshatra boundaries (13 deg 20 min each).
+- Color-coded, configurable band palette.
+- Labels rendered as sprites on the belt or as HUD overlays (configurable).
+
+#### Planetary Mapping
+
+- Compute sidereal longitude:
+  `lambda_sidereal = normalize(lambda_ecliptic - ayanamsa)`
+- Map to rasi:
+  `rasi_index = floor(lambda_sidereal / 30)`
+  `degree_in_rasi = lambda_sidereal % 30`
+- Support both:
+  - Geocentric sky view (observer-based)
+  - Heliocentric solar system view
+- Mapping is independent of Earth rotation; only sky placement depends on observer.
+
+### 15.4 Architecture Proposal
+
+#### Text Diagram
+
+```
+[Time Engine] -> [Ephemeris Layer] -> [Coordinate Transforms] -> [Sidereal Zodiac Model]
+       |                |                   |                     |
+       |                |                   |                     +-> Rasi bands + labels
+       |                |                   +-> RA/Dec, Alt/Az     +-> Planet rasi/degree data
+       |                +-> Helio/Geo vectors
+       +-> JD, LST
+[Visualization Layer]
+  - Solar System View (planetesimal.html)
+  - Earth-Sky View (nightsky/earth-sky)
+```
+
+#### Data Flow
+
+- Time engine yields JD/LST.
+- Ephemeris provides helio/geo state vectors.
+- Coordinate transforms compute ecliptic longitude and topocentric sky positions.
+- Sidereal zodiac model computes rasi and degrees.
+- Visualization layer reads the model and renders belts/labels per view.
+
+#### Suggested Libraries / Data Sources (no lock-in)
+
+- Keep current analytic ephemerides for MVP; allow a future adapter for higher precision (VSOP87, Swiss Ephemeris, or precomputed tables).
+- Ayanamsa as a configurable constant to start; make it a data-driven option later.
+
+#### Performance Considerations
+
+- Cache rasi calculations by JD step (minute-level granularity).
+- Prebuild rasi belt geometry; update only visibility and labels on toggle.
+- Keep the zodiac model math-only and testable.
+
+#### Extensibility Roadmap (Design)
+
+- `ZodiacModel` (math-only) and `ZodiacRenderer` (view adapters).
+- Clean separation between data calculation and UI/Three.js rendering.
+
+### 15.5 Implementation Phases
+
+1. Minimal rasi band rendering
+   - Add a fixed ecliptic-aligned belt in both views.
+   - Add 12 color segments with labels.
+2. Planet mapping and labels
+   - Compute sidereal longitude and add rasi + degree text.
+3. Observer-aware sky projection
+   - Ensure topocentric projection does not alter rasi assignment.
+4. Horoscope chart data model
+   - Data-only output: lagna, planet rasi/degree.
+5. Future nakshatra and dasha extensions
+   - Add nakshatra boundaries and optional dasha modules.
+
+### 15.6 Extension Roadmap
+
+- Configurable ayanamsa source (constant vs time-dependent).
+- Precession/nutation for long-term accuracy.
+- Topocentric parallax for Moon/planets in the sky view.
+- Higher-precision ephemeris adapter with caching.
+- Side-by-side horoscope chart (data-first, UI-light).
+
 
 

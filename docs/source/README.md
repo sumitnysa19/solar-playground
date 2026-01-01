@@ -1,4 +1,13 @@
-# Planetesimal — Solar System Web Simulation
+# Planetesimal - Solar System Web Simulation
+
+## Status Update (2026-01-01)
+
+This document is legacy. The current, maintained documentation lives in `docs/`.
+
+Key current notes:
+- Solar system simulation runs from `planetesimal.html` with ES modules served over HTTP.
+- Earth-sky viewer runs from `nightsky/earth-sky/index.html`.
+- The Earth horizon disc is a tangent plane oriented with a stable local North/East/Up basis (see `docs/low-level/horizon-plane.md`).
 
 A self-contained, client-side web simulation of the Solar System. It renders planets, moons, orbits, and a starfield using Three.js (ES modules) with interactive camera controls, labels, and a settings panel.
 
@@ -16,30 +25,30 @@ A self-contained, client-side web simulation of the Solar System. It renders pla
   - Node: `npx http-server -p 8080`
 - Open: `http://localhost:8080/planetesimal.html`
 
-If you see “Unexpected token export” in `scripting.js`, verify that `planetesimal.html` loads it with `type="module"` and you aren’t opening the HTML via `file://`.
+If you see "Unexpected token export" in `scripting.js`, verify that `planetesimal.html` loads it with `type="module"` and you aren't opening the HTML via `file://`.
 
 ## Project Structure
 
 ```
 .
-├─ planetesimal.html          # Entry point (loads scripting.js as an ES module)
-├─ scripting.js               # Main scene setup, animation loop, UI and input
-├─ functions.js               # Math, transforms, orbit construction helpers
-├─ construction.js            # Body definitions and mesh/orbit creation
-├─ planet.js, moon.js         # Body classes and update logic
-├─ shaders.js                 # GLSL shaders (orbits, atmosphere)
-├─ module.js                  # Three.js ES module proxy (CDN/local)
-├─ EffectComposer.js ...      # Three.js postprocessing modules
-├─ assets/
-│  ├─ flare*.jpg, cross.png   # Lens flare & sprites
-│  ├─ constellations.json     # (Optional) full 2D constellation lines
-│  ├─ constellation_boundaries.json  # (Optional) IAU boundary polylines
-│  └─ hygdata_v3.csv / hyg_v42.csv   # (Optional) HYG star catalog (3D)
-├─ textures/                  # Planet textures (Basis format)
-├─ music/ambient.mp3          # Ambient audio
-├─ convert-lines.js           # Convert d3-celestial lines → constellations.json
-├─ convert-bounds.js          # Convert boundary GeoJSON → constellation_boundaries.json
-└─ convert-hyg.js             # Convert HYG CSV → stars3d.json (optional)
+ planetesimal.html          # Entry point (loads scripting.js as an ES module)
+ scripting.js               # Main scene setup, animation loop, UI and input
+ functions.js               # Math, transforms, orbit construction helpers
+ construction.js            # Body definitions and mesh/orbit creation
+ planet.js, moon.js         # Body classes and update logic
+ shaders.js                 # GLSL shaders (orbits, atmosphere)
+ module.js                  # Three.js ES module proxy (CDN/local)
+ EffectComposer.js ...      # Three.js postprocessing modules
+ assets/
+   flare*.jpg, cross.png   # Lens flare & sprites
+   constellations.json     # (Optional) full 2D constellation lines
+   constellation_boundaries.json  # (Optional) IAU boundary polylines
+   hygdata_v3.csv / hyg_v42.csv   # (Optional) HYG star catalog (3D)
+ textures/                  # Planet textures (Basis format)
+ music/ambient.mp3          # Ambient audio
+ convert-lines.js           # Convert d3-celestial lines -> constellations.json
+ convert-bounds.js          # Convert boundary GeoJSON -> constellation_boundaries.json
+ convert-hyg.js             # Convert HYG CSV -> stars3d.json (optional)
 ```
 
 ### Module Relationships
@@ -98,13 +107,13 @@ flowchart LR
 - Click: focus body under cursor (also updates info)
 - Double-click: focus body (legacy)
 - Hotkeys:
-  - `K` — pause/resume time
-  - `,` / `.` — decelerate/accelerate time
-  - `/` — reverse time direction
-  - `` ` `` — toggle UI overlay
-  - `I` — toggle info panel
-  - `O` — toggle orbits
-  - `T` — toggle labels
+  - `K` - pause/resume time
+  - `,` / `.` - decelerate/accelerate time
+  - `/` - reverse time direction
+  - `` ` `` - toggle UI overlay
+  - `I` - toggle info panel
+  - `O` - toggle orbits
+  - `T` - toggle labels
 
 ## Constellations (2D, optional)
 
@@ -148,9 +157,9 @@ If you want a true 3D starfield (distance-aware) in addition to the 2D lines:
 
 1) Download HYG catalog CSV (v3 or v4.2) to `assets/`
 2) Convert:
-- `node convert-hyg.js` → writes `assets/stars3d.json`
+- `node convert-hyg.js` -> writes `assets/stars3d.json`
 
-The 3D rendering code paths can be wired to show a Points cloud and optional 3D constellation lines. They’re left dormant by default to keep the 2D experience stable.
+The 3D rendering code paths can be wired to show a Points cloud and optional 3D constellation lines. They're left dormant by default to keep the 2D experience stable.
 
 ## Implementation Notes
 
@@ -164,24 +173,24 @@ The 3D rendering code paths can be wired to show a Points cloud and optional 3D 
 - The Sun now drifts through the scene with an approximate galactic orbital speed of `~230 km/s` (230,000 m/s), representing motion around the Milky Way.
 - Reference scale: positions are in scene units of `1e7 m` per unit; velocities are kept in SI (m/s) and integrated per simulated second.
 - Integration: `stellar.update()` advances stellar positions using the simulated time `J_S` each frame and updates the point light/lens flare accordingly.
-- Planets and moons inherit the parent body’s position/velocity (see `planet.js:46`), so the entire Solar System translates consistently with the Sun.
-- Typical parameters: Galactocentric radius `R0 ≈ 8.2 kpc (≈2.53e20 m)`, circular speed near the LSR `v ≈ 230 km/s`, orbital period `T ≈ 220 Myr` (2πR0/v). This simulation applies a local linear drift suitable for Solar System timescales rather than rendering a full 8 kpc-scale orbit.
+- Planets and moons inherit the parent body's position/velocity (see `planet.js:46`), so the entire Solar System translates consistently with the Sun.
+- Typical parameters: Galactocentric radius `R0  8.2 kpc (2.53e20 m)`, circular speed near the LSR `v  230 km/s`, orbital period `T  220 Myr` (2R0/v). This simulation applies a local linear drift suitable for Solar System timescales rather than rendering a full 8 kpc-scale orbit.
 
 ## Known Issues & Fixes
 
 - SyntaxError: Unexpected token `export`
   - Ensure `scripting.js` is loaded with `type="module"` and served via HTTP, not `file://`.
-- “Invalid or unexpected token” with `\r\n`
+- "Invalid or unexpected token" with `\r\n`
   - A literal CRLF string entered the file. Replace `\r\n` with real newlines and hard refresh.
 - Only a few constellations appear
   - Confirm `assets/constellations.json` exists, loads (200), and hard-refresh with cache disabled.
-- Can’t zoom past the sphere
+- Can't zoom past the sphere
   - Increase `controls.maxDistance` (e.g., `8e7`) to match the sky sphere radius.
 
 ## Development Tips
 
 - Keep edits surgical; modules are reloaded by the browser directly.
-- Use DevTools → Network to validate dataset fetches; disable cache when testing.
+- Use DevTools -> Network to validate dataset fetches; disable cache when testing.
 - Inspect scene state via Console:
   - `scene.children`
   - `constellationGroup.geometry.attributes.position.count`
@@ -192,3 +201,4 @@ The 3D rendering code paths can be wired to show a Points cloud and optional 3D 
 This is a reconstructed deployment of a website with third-party assets and data. Verify licensing for any external datasets (e.g., HYG, d3-celestial) before redistribution.
 
 npx http-server -p 8090
+

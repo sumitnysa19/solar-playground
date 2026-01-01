@@ -1,5 +1,9 @@
 # Proposal Review & Refinement Summary
 
+## Status Update (2026-01-01)
+
+This refinement summary is legacy. Current implementation details live in `docs/` and the `nightsky/earth-sky/` codebase.
+
 ## Document: Earth Sky Simulation Extension Proposal
 
 **Original Length:** ~190 lines  
@@ -11,83 +15,83 @@
 ## Key Refinements Made
 
 ### 1. **Architectural Clarity**
-- ✅ Added comprehensive system architecture diagram showing all modules
-- ✅ Clear data flow from user input through rendering
-- ✅ Module organization structure defined
-- ✅ Integration points identified
+-  Added comprehensive system architecture diagram showing all modules
+-  Clear data flow from user input through rendering
+-  Module organization structure defined
+-  Integration points identified
 
 ### 2. **Observer & Time Handling**
-- ✅ Added timezone-aware time conversion with Intl API support
-- ✅ Implemented TimeConverter class with UTC conversion
-- ✅ Added DST (daylight saving time) awareness
-- ✅ Predefined observer presets (New Delhi, Greenwich, Sydney, Equator)
-- ✅ Elevation parameter for parallax (minor but complete)
+-  Added timezone-aware time conversion with Intl API support
+-  Implemented TimeConverter class with UTC conversion
+-  Added DST (daylight saving time) awareness
+-  Predefined observer presets (New Delhi, Greenwich, Sydney, Equator)
+-  Elevation parameter for parallax (minor but complete)
 
 ### 3. **Coordinate Transformations (Expanded)**
-- ✅ Detailed 10-step pipeline from heliocentric to observer-local
-- ✅ Complete pseudocode for each transformation
-- ✅ Added atmospheric refraction considerations
-- ✅ Precession & nutation notes for high precision
-- ✅ Clear explanation of coordinate conventions (N=0, E=90, S=180, W=270)
+-  Detailed 10-step pipeline from heliocentric to observer-local
+-  Complete pseudocode for each transformation
+-  Added atmospheric refraction considerations
+-  Precession & nutation notes for high precision
+-  Clear explanation of coordinate conventions (N=0, E=90, S=180, W=270)
 
 ### 4. **Sidereal Time (Enhanced)**
-- ✅ USNO algorithm implementation
-- ✅ Both classical and modern (ERA) approaches
-- ✅ Hour angle computation for rise/set
-- ✅ Clear explanation of why LST matters for visibility
+-  USNO algorithm implementation
+-  Both classical and modern (ERA) approaches
+-  Hour angle computation for rise/set
+-  Clear explanation of why LST matters for visibility
 
 ### 5. **Sky Rendering (Detailed)**
-- ✅ Three-step coordinate transformation with math
-- ✅ Cartesian ↔ RA/Dec conversions with full formulas
-- ✅ Complete Alt/Az transformation with all trigonometry
-- ✅ Important conventions explained (altitude, azimuth ranges)
-- ✅ Sky dome geometry creation with inversion
-- ✅ Horizon line & cardinal direction projection
-- ✅ Optional altitude/azimuth grid for reference
+-  Three-step coordinate transformation with math
+-  Cartesian <-> RA/Dec conversions with full formulas
+-  Complete Alt/Az transformation with all trigonometry
+-  Important conventions explained (altitude, azimuth ranges)
+-  Sky dome geometry creation with inversion
+-  Horizon line & cardinal direction projection
+-  Optional altitude/azimuth grid for reference
 
 ### 6. **Trail Tracking (Comprehensive)**
-- ✅ Complete TypeScript interfaces for SkyTrail & SkyPoint
-- ✅ Sampling intervals for three modes: day/month/year
-- ✅ Rise/set time computation from trail data
-- ✅ Color assignment system for different bodies
-- ✅ Animated trail rendering with fade effect
-- ✅ Trail storage structure clear and efficient
+-  Complete TypeScript interfaces for SkyTrail & SkyPoint
+-  Sampling intervals for three modes: day/month/year
+-  Rise/set time computation from trail data
+-  Color assignment system for different bodies
+-  Animated trail rendering with fade effect
+-  Trail storage structure clear and efficient
 
 ### 7. **Rise/Set Calculation (Rigorous)**
-- ✅ Binary search refinement for high precision (0.01 second)
-- ✅ Transit time (culmination) detection
-- ✅ Visibility flag handling
-- ✅ Complete algorithm from coarse search to fine refinement
+-  Binary search refinement for high precision (0.01 second)
+-  Transit time (culmination) detection
+-  Visibility flag handling
+-  Complete algorithm from coarse search to fine refinement
 
 ### 8. **Retrograde Detection (Implemented)**
-- ✅ Automatic retrograde period detection from trail data
-- ✅ Duration calculation and analysis
-- ✅ Maximum retrogression magnitude computation
-- ✅ Minimum duration filtering
+-  Automatic retrograde period detection from trail data
+-  Duration calculation and analysis
+-  Maximum retrogression magnitude computation
+-  Minimum duration filtering
 
 ### 9. **Realistic Use Cases**
-- ✅ Mars retrograde scenario (Sept 2026, New Delhi)
-- ✅ Sun's daily arc (equinox, equator)
-- ✅ Venus evening star (spring visibility)
-- ✅ All with expected numerical results for validation
+-  Mars retrograde scenario (Sept 2026, New Delhi)
+-  Sun's daily arc (equinox, equator)
+-  Venus evening star (spring visibility)
+-  All with expected numerical results for validation
 
 ### 10. **Validation Strategy**
-- ✅ Physical test cases with expected values
-- ✅ Comparison points with Stellarium & NASA Horizons
-- ✅ Unit test examples
-- ✅ Numerical precision targets
+-  Physical test cases with expected values
+-  Comparison points with Stellarium & NASA Horizons
+-  Unit test examples
+-  Numerical precision targets
 
 ### 11. **Performance Analysis**
-- ✅ Memory footprint calculations (< 200 KB)
-- ✅ Computation reuse from heliocentric engine
-- ✅ Optimization strategies identified
-- ✅ Batch rendering approach
+-  Memory footprint calculations (< 200 KB)
+-  Computation reuse from heliocentric engine
+-  Optimization strategies identified
+-  Batch rendering approach
 
 ### 12. **Implementation Roadmap**
-- ✅ 6-phase implementation plan
-- ✅ Detailed time estimates (~2-3 weeks total)
-- ✅ Clear task breakdown by component
-- ✅ Dependency ordering
+-  6-phase implementation plan
+-  Detailed time estimates (~2-3 weeks total)
+-  Clear task breakdown by component
+-  Dependency ordering
 
 ---
 
@@ -228,7 +232,7 @@ function raDecToAltAz(ra, dec, lst_deg, lat_deg) {
 
 1. **AR Integration:** Should we design for eventual AR mobile app overlay?
 2. **Educational UI:** Target audience - students, professionals, or both?
-3. **Historical precision:** How far back should retrograde dates be accurate? (±1 day, ±1 hour, ±1 minute?)
+3. **Historical precision:** How far back should retrograde dates be accurate? (+/-1 day, +/-1 hour, +/-1 minute?)
 4. **Performance target:** Minimum 30 FPS, 60 FPS, or 120 FPS for trail updates?
 5. **Timezone handling:** Auto-detect from browser location, or always manual selection?
 
@@ -239,3 +243,4 @@ function raDecToAltAz(ra, dec, lst_deg, lat_deg) {
 The refined proposal now provides **production-ready implementation guidance** with enough technical depth for immediate development. All major architectural decisions are documented, implementation phases are clear, and validation strategies are defined.
 
 **Status:** Ready for development
+

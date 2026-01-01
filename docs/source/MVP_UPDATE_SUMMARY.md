@@ -1,10 +1,14 @@
 # MVP Proposal Update Summary
 
+## Status Update (2026-01-01)
+
+Legacy update summary. See `docs/` for current features and architecture.
+
 **Date:** December 14, 2025
 
 ## Changes Completed
 
-### 1. MVP Scope Narrowed ✅
+### 1. MVP Scope Narrowed 
 **Section 1.2: MVP Includes** - Successfully updated to reflect narrowed feature set:
 
 - **Mandatory 7 Bodies:** Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn
@@ -15,7 +19,7 @@
 - **Uniform Star Sizing:** No magnitude-based star appearance
 - **Minimal UI:** Play/pause, time slider, observer preset dropdown, constellation toggle
 
-### 2. MVP Excludes Clarified ✅
+### 2. MVP Excludes Clarified 
 **Section 1.2: MVP Excludes** - Comprehensive list of features deferred to Phase 2:
 - Atmospheric refraction, extinction, twilight gradients
 - Precession, nutation, aberration corrections
@@ -29,14 +33,14 @@
 - Landscape textures
 - Automated Horizons validation
 
-### 3. Trail Sampling Updated ✅
+### 3. Trail Sampling Updated 
 **Sections 8 & SkyTraceManager:** Trail configuration updated:
 - **Day mode only** in MVP
 - **6-hour coarse sampling:** 4 points per celestial body per day
 - Removed references to month/year modes
 - Interface updated: `mode: "day"` (hardcoded for MVP)
 
-### 4. Timeline and Success Criteria Aligned ✅
+### 4. Timeline and Success Criteria Aligned 
 **Proposal Conclusion Section (Section 14):**
 - Updated timeline reflects 7 implementation phases over 10-15 working days
 - Success criteria updated to include mandatory 7 bodies + 28 nakshatras
@@ -44,9 +48,9 @@
 - Memory footprint confirmed at <5 MB
 - Minimal UI requirements specified
 
-## Still To Do (Minor Formatting Cleanup)
+## Still To Do (Legacy snapshot; not tracked)
 
-The following sections contain old references that should be manually reviewed and updated due to Unicode arrow encoding issues (`→`, `±`, `×`, `✓`) that prevent automated string matching:
+The following sections contain old references that should be manually reviewed and updated due to Unicode arrow encoding issues (`->`, `+/-`, `x`, ``) that prevent automated string matching:
 
 ### Section 7.2 (Stars)
 **Location:** Lines 575-595
@@ -79,9 +83,9 @@ The following sections contain old references that should be manually reviewed a
 
 ### Mandatory MVP Components
 
-1. **HelioStateProvider** ✅ (Already documented in Section 1.1)
+1. **HelioStateProvider**  (Already documented in Section 1.1)
    - Cache existing heliocentric ephemeris
-   - Interface: `getBodyState(bodyId, jd)` → `{posEcliptic, velEcliptic}`
+   - Interface: `getBodyState(bodyId, jd)` -> `{posEcliptic, velEcliptic}`
 
 2. **7 Celestial Bodies (Must-Have)**
    - Sun: yellow marker (0xffff00)
@@ -101,7 +105,7 @@ The following sections contain old references that should be manually reviewed a
 
 4. **Day Mode Trails (MVP Only)**
    - 6-hour sampling: 4 points per body per day
-   - Start/end: current day ±0 hours to ±24 hours
+   - Start/end: current day +/-0 hours to +/-24 hours
    - Store in ring buffers to cap memory
 
 5. **Observer Presets (Minimum Required)**
@@ -139,7 +143,7 @@ The following sections contain old references that should be manually reviewed a
 - [ ] All 28 nakshatras visible with constellation lines
 - [ ] Day trails show 6-hour sampling points
 - [ ] Observer presets update sky correctly
-- [ ] Rise/set times within ±15 minutes of Stellarium
+- [ ] Rise/set times within +/-15 minutes of Stellarium
 - [ ] 60 FPS target achieved with trails enabled
 - [ ] Manual Stellarium Web cross-checks pass
 - [ ] Memory footprint <5 MB
@@ -148,7 +152,7 @@ The following sections contain old references that should be manually reviewed a
 
 ## File References
 
-**Updated Proposal:** `Earth_Sky_Simulation_Proposal_Extended.md`
+**Updated Proposal:** `docs/source/Earth_Sky_Simulation_Proposal_Extended.md`
 - Sections fully updated: 1.2, 1.3
 - Sections partially updated: 8 (trail sampling)
 - Sections needing cleanup: 7.2-7.3, Section 8 title, Section 14 criteria
@@ -165,3 +169,5 @@ The following sections contain old references that should be manually reviewed a
 3. **Verify Section 14** success criteria includes all 28 nakshatras and 7 bodies explicitly
 4. **Begin Phase 1 Implementation** using updated timeline (7 phases, 10-15 days)
 5. **Start with HelioStateProvider** and coordinate transform modules
+
+

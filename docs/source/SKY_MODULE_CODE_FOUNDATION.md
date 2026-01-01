@@ -1,5 +1,9 @@
 # Sky View Implementation - Code Foundation
 
+## Status Update (2026-01-01)
+
+Legacy design notes. The active, user-facing sky viewer is in `nightsky/earth-sky/` and documented in `docs/`.
+
 This document contains production-ready code snippets extracted from the refined proposal, organized by module.
 
 ---
@@ -11,7 +15,7 @@ This document contains production-ready code snippets extracted from the refined
 ```javascript
 /**
  * Core coordinate transformation library
- * Converts from heliocentric ecliptic → observer-local horizontal (Alt/Az)
+ * Converts from heliocentric ecliptic -> observer-local horizontal (Alt/Az)
  */
 
 class SkyCoordinateTransformer {
@@ -22,7 +26,7 @@ class SkyCoordinateTransformer {
   static G = 6.67408e-11; // m^3 kg^-1 s^-2
 
   /**
-   * Complete transformation: heliocentric → observer local altitude/azimuth
+   * Complete transformation: heliocentric -> observer local altitude/azimuth
    * @param {Vector3} heliocentricPos - Position in heliocentric ecliptic frame (meters)
    * @param {Vector3} earthHeliocentricPos - Earth position in heliocentric frame
    * @param {Observer} observer - Observer location
@@ -34,10 +38,10 @@ class SkyCoordinateTransformer {
     const geocentric = heliocentricPos.clone()
       .sub(earthHeliocentricPos);
     
-    // Step 2: Ecliptic → Equatorial
+    // Step 2: Ecliptic -> Equatorial
     const equatorial = this.eclipticToEquatorial(geocentric);
     
-    // Step 3: Cartesian → RA/Dec
+    // Step 3: Cartesian -> RA/Dec
     const { ra, dec, distance } = this.cartesianToRaDec(equatorial);
     
     // Step 4: Greenwich Sidereal Time
@@ -46,7 +50,7 @@ class SkyCoordinateTransformer {
     // Step 5: Local Sidereal Time
     const lst = SiderealTime.localSiderealTime(jd, observer.longitude);
     
-    // Step 6: RA/Dec → Alt/Az
+    // Step 6: RA/Dec -> Alt/Az
     const { alt, az, alt_deg, az_deg } = this.raDecToAltAz(
       ra, dec, lst, observer.latitude
     );
@@ -72,7 +76,7 @@ class SkyCoordinateTransformer {
   }
 
   /**
-   * Inverse: Equatorial → Ecliptic
+   * Inverse: Equatorial -> Ecliptic
    */
   static equatorialToEcliptic(equatorialVec) {
     const eps = this.OBLIQUITY_J2000;
@@ -101,14 +105,14 @@ class SkyCoordinateTransformer {
     const dec = Math.asin(vec.z / distance);
     
     return {
-      ra: ra >= 0 ? ra : ra + 2 * Math.PI,  // [0, 2π]
-      dec: dec,                               // [-π/2, π/2]
+      ra: ra >= 0 ? ra : ra + 2 * Math.PI,  // [0, 2]
+      dec: dec,                               // [-/2, /2]
       distance: distance
     };
   }
 
   /**
-   * Inverse: RA/Dec → Cartesian equatorial
+   * Inverse: RA/Dec -> Cartesian equatorial
    */
   static raDecToCartesian(ra, dec, distance = 1) {
     const cos_dec = Math.cos(dec);
@@ -123,8 +127,8 @@ class SkyCoordinateTransformer {
    * Convert RA/Dec (celestial) to Alt/Az (observer-local horizontal)
    * This is the CRITICAL transformation for sky rendering
    * 
-   * @param {number} ra - Right Ascension in radians [0, 2π]
-   * @param {number} dec - Declination in radians [-π/2, π/2]
+   * @param {number} ra - Right Ascension in radians [0, 2]
+   * @param {number} dec - Declination in radians [-/2, /2]
    * @param {number} lst_deg - Local Sidereal Time in degrees [0, 360]
    * @param {number} lat_deg - Observer latitude in degrees [-90, 90]
    * @returns {Object} {alt, az, alt_deg, az_deg}
@@ -146,14 +150,14 @@ class SkyCoordinateTransformer {
     const cos_ha = Math.cos(ha);
     
     // ALTITUDE: angle above horizon
-    // Range: [-π/2, π/2] where π/2 = zenith, 0 = horizon, -π/2 = nadir
+    // Range: [-/2, /2] where /2 = zenith, 0 = horizon, -/2 = nadir
     const alt = Math.asin(
       sin_lat * sin_dec + 
       cos_lat * cos_dec * cos_ha
     );
     
     // AZIMUTH: compass direction from observer
-    // Range: [0, 2π] where 0 = North, π/2 = East, π = South, 3π/2 = West
+    // Range: [0, 2] where 0 = North, /2 = East,  = South, 3/2 = West
     const az = Math.atan2(
       -sin_ha,
       Math.tan(dec) * cos_lat - sin_lat * cos_ha
@@ -161,7 +165,7 @@ class SkyCoordinateTransformer {
     
     return {
       alt: alt,
-      az: az >= 0 ? az : az + 2 * Math.PI,  // Normalize to [0, 2π]
+      az: az >= 0 ? az : az + 2 * Math.PI,  // Normalize to [0, 2]
       alt_deg: alt * 180 / Math.PI,
       az_deg: az * 180 / Math.PI
     };
@@ -173,7 +177,7 @@ class SkyCoordinateTransformer {
    */
   static applyAtmosphericRefraction(alt_deg) {
     // Standard atmospheric refraction formula
-    // Negligible above 15°, significant below 5°
+    // Negligible above 15deg, significant below 5deg
     if (alt_deg < -1) return alt_deg; // Below horizon, no correction
     
     const R = 34.46 / (60 * Math.tan(alt_deg * Math.PI / 180 + 10.3 / (alt_deg + 5.11)));
@@ -199,7 +203,7 @@ export { SkyCoordinateTransformer };
 class SiderealTime {
   /**
    * Compute Greenwich Sidereal Time
-   * GST represents the right ascension of the vernal equinox at Greenwich (0° longitude)
+   * GST represents the right ascension of the vernal equinox at Greenwich (0deg longitude)
    * 
    * @param {number} jd - Julian Date (UT1 seconds)
    * @returns {number} GST in degrees (0-360)
@@ -318,7 +322,7 @@ class SiderealTime {
    */
   static isVisible(alt_deg) {
     // Standard horizon definition with atmospheric refraction
-    // Objects with alt > -0.83° appear above geometric horizon
+    // Objects with alt > -0.83deg appear above geometric horizon
     return alt_deg > -0.83;
   }
 }
@@ -342,8 +346,8 @@ class SkyDomeProjector {
   /**
    * Project observer-local coordinates (Alt/Az) to 3D scene coordinates
    * 
-   * @param {number} alt - Altitude in radians [-π/2, π/2]
-   * @param {number} az - Azimuth in radians [0, 2π]
+   * @param {number} alt - Altitude in radians [-/2, /2]
+   * @param {number} az - Azimuth in radians [0, 2]
    * @param {number} radius - Sky dome radius (typically 900 scene units)
    * @returns {Object} {x, y, z} - 3D position on sky dome
    */
@@ -716,7 +720,7 @@ class SkySceneManager {
     const lst = SiderealTime.localSiderealTime(jd, this.observer.longitude);
     
     for (const body of heliocentricBodies) {
-      // Transform heliocentric → observer-local
+      // Transform heliocentric -> observer-local
       const skyPos = SkyCoordinateTransformer.heliocentricToAltAz(
         body.position,
         earthPosition,
@@ -763,14 +767,15 @@ class SkySceneManager {
 ```
 src/
   sky-module/
-    ├── coordinate-transforms.js    (270 lines - ready)
-    ├── sidereal-time.js            (150 lines - ready)
-    ├── sky-dome.js                 (280 lines - ready)
-    ├── observer-input.js           (200 lines - ready)
-    ├── trail-manager.js            (needs implementation)
-    ├── rise-set-calculator.js      (needs implementation)
-    ├── sky-ui.js                   (needs implementation)
-    └── sky-scene.js                (needs implementation)
+     coordinate-transforms.js    (270 lines - ready)
+     sidereal-time.js            (150 lines - ready)
+     sky-dome.js                 (280 lines - ready)
+     observer-input.js           (200 lines - ready)
+     trail-manager.js            (needs implementation)
+     rise-set-calculator.js      (needs implementation)
+     sky-ui.js                   (needs implementation)
+     sky-scene.js                (needs implementation)
 ```
 
 **Total Foundation Code: ~900 lines ready for production**
+

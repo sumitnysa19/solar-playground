@@ -1,12 +1,17 @@
 # Sky View MVP - Module Documentation
 
+## Status Update (2026-01-01)
+
+The sky-module is a standalone viewer and is not integrated into `planetesimal.html` by default.
+Use `nightsky/earth-sky/` for the active viewer path.
+
 ## Overview
 
 Sky View MVP is a minimal but feature-complete sky visualization system with:
 - **7 Major Celestial Bodies**: Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn
 - **28 Indian Nakshatras**: Complete constellation line system
 - **Daily Trails**: 6-hour coarse sampling for motion tracking
-- **Rise/Set Calculation**: ±15 minute coarse algorithm
+- **Rise/Set Calculation**: +/-15 minute coarse algorithm
 - **Independent Architecture**: Separate from planetesimal.html, no conflicts
 
 ## Module Structure
@@ -19,8 +24,8 @@ import { HelioStateProvider } from './sky-module/HelioStateProvider.js';
 ```
 **Purpose**: Wraps existing `vector()` Kepler solver and provides body position caching
 **Key Methods**:
-- `getBodyState(bodyId, jd)` → `{posEcliptic, velEcliptic}`
-- `getInstance()` → Singleton instance
+- `getBodyState(bodyId, jd)` -> `{posEcliptic, velEcliptic}`
+- `getInstance()` -> Singleton instance
 
 **Features**:
 - LRU cache (max 500 entries) for performance
@@ -43,7 +48,7 @@ import { CoordinateTransforms } from './sky-module/CoordinateTransforms.js';
 **Purpose**: Complete coordinate transformation pipeline for observer-centric astronomy
 **Key Methods**:
 - `heliocentricToGeocentric(bodyPos, earthPos)` - Vector subtraction
-- `eclipticToEquatorial(eclipticVec)` - Rotate by 23.44° obliquity
+- `eclipticToEquatorial(eclipticVec)` - Rotate by 23.44deg obliquity
 - `cartesianToRaDec(vec)` - Spherical coordinates
 - `greenwichSiderealTime(jd)` - USNO formula (accurate to 0.01 seconds)
 - `localSiderealTime(jd, longitude)` - LST = GST + longitude
@@ -51,7 +56,7 @@ import { CoordinateTransforms } from './sky-module/CoordinateTransforms.js';
 - `getBodyAltAz(...)` - Full pipeline integration
 
 **Constants**:
-- `OBLIQUITY_J2000 = 23.43929111°`
+- `OBLIQUITY_J2000 = 23.43929111deg`
 - `DEG_TO_RAD`, `RAD_TO_DEG` conversion factors
 
 **Accuracy**: Geometric (no refraction, parallax, nutation - MVP scope)
@@ -73,10 +78,10 @@ import { SkyDome } from './sky-module/SkyDome.js';
 
 **Features**:
 - Inverted hemisphere for star/constellation projection
-- Horizon line at altitude = 0°
+- Horizon line at altitude = 0deg
 - Cardinal direction markers (N, E, S, W) with colors
-- Meridian grid (altitude lines at 15° intervals)
-- Azimuth lines every 15°
+- Meridian grid (altitude lines at 15deg intervals)
+- Azimuth lines every 15deg
 
 **Public Methods**:
 - `setVisible(boolean)` - Toggle dome visibility
@@ -111,7 +116,7 @@ import { NAKSHATRAS, getNakshatraByName } from './sky-module/Nakshatras.js';
 **Nakshatras Included**:
 1. Ashvini (Ketu), 2. Bharani (Venus), 3. Krittika (Sun), 4. Rohini (Moon),
 5. Mrigashira (Mars), 6. Ardra (Rahu), 7. Punarvasu (Jupiter), 8. Pushya (Saturn),
-9. Ashleshā (Mercury), 10. Maghā (Ketu), 11. Purva Phalguni (Venus), 12. Uttara Phalguni (Sun),
+9. Ashlesh (Mercury), 10. Magh (Ketu), 11. Purva Phalguni (Venus), 12. Uttara Phalguni (Sun),
 13. Hasta (Moon), 14. Chitra (Mars), 15. Svati (Rahu), 16. Vishakha (Jupiter),
 17. Anuradha (Saturn), 18. Jyeshtha (Mercury), 19. Mula (Ketu), 20. Purva Ashadha (Venus),
 21. Uttara Ashadha (Sun), 22. Shravana (Moon), 23. Dhanishta (Mars), 24. Shatabhisha (Rahu),
@@ -174,7 +179,7 @@ import { TrailManager } from './sky-module/TrailManager.js';
 - ~20 bytes per position (x, y, z, jd, alt)
 
 **Memory Usage**:
-- 7 bodies × 16 max points × 20 bytes = 2.24 KB
+- 7 bodies x 16 max points x 20 bytes = 2.24 KB
 - Plus THREE.js geometry overhead ~5-10 KB total
 
 **Usage**:
@@ -194,9 +199,9 @@ import { RiseSetCalculator } from './sky-module/RiseSetCalculator.js';
 **Constructor**: `new RiseSetCalculator()`
 
 **Public Methods**:
-- `calculateRiseSetTransit(bodyName, jdDate, latitude, longitude)` → Result object
-- `calculateAllBodies(jdDate, latitude, longitude)` → Results for all 7 bodies
-- `formatResult(result)` → Human-readable string
+- `calculateRiseSetTransit(bodyName, jdDate, latitude, longitude)` -> Result object
+- `calculateAllBodies(jdDate, latitude, longitude)` -> Results for all 7 bodies
+- `formatResult(result)` -> Human-readable string
 
 **Result Object**:
 ```javascript
@@ -216,13 +221,13 @@ import { RiseSetCalculator } from './sky-module/RiseSetCalculator.js';
 - Finds maximum altitude (transit)
 - Handles edge cases (circumpolar, never-rises)
 
-**Accuracy**: ±15 minutes coarse (MVP scope)
+**Accuracy**: +/-15 minutes coarse (MVP scope)
 
 **Usage**:
 ```javascript
 const calc = new RiseSetCalculator();
 const result = calc.calculateRiseSetTransit('Sun', jdDate, latitude, longitude);
-console.log(calc.formatResult(result));  // "Rise: 06:15:00 | Transit: 12:30:45 | Set: 18:45:10 | Max Alt: 60.3°"
+console.log(calc.formatResult(result));  // "Rise: 06:15:00 | Transit: 12:30:45 | Set: 18:45:10 | Max Alt: 60.3deg"
 ```
 
 ---
@@ -241,10 +246,10 @@ import { SkyScene } from './sky-module/SkyScene.js';
 - `setJulianDate(jd)` - Set current time
 - `goToDate(dateOrJd)` - Jump to date (ISO string or JD)
 - `setObserverLocation(latitude, longitude)` - Change observer
-- `getObserverInfo()` → `{latitude, longitude, jd, isAnimating, animationSpeed}`
-- `getBodyInfo(bodyName)` → Body position data
-- `getAllBodies()` → All bodies info
-- `getRiseSetTimes()` → Rise/set for all 7 bodies
+- `getObserverInfo()` -> `{latitude, longitude, jd, isAnimating, animationSpeed}`
+- `getBodyInfo(bodyName)` -> Body position data
+- `getAllBodies()` -> All bodies info
+- `getRiseSetTimes()` -> Rise/set for all 7 bodies
 - `setNakshatrasVisible(visible)` - Toggle nakshatras
 - `setTrailsVisible(visible)` - Toggle trails
 - `clearTrails()` - Clear all trails
@@ -293,7 +298,7 @@ import { SkyControls } from './sky-module/SkyControls.js';
 **Constructor**: `new SkyControls(skyScene, containerId)`
 
 **Features**:
-- **Time Control**: Slider (±30 days), date/time display
+- **Time Control**: Slider (+/-30 days), date/time display
 - **Animation**: Play/pause, speed selector (1x, 24x, 240x, 2400x)
 - **Observer Presets**: Delhi, Mumbai, Bangalore, London, New York, Tokyo, Sydney
 - **Toggles**: Nakshatras, Trails, Grid
@@ -332,11 +337,11 @@ const controls = new SkyControls(skyScene, 'controls-container');
 - **THREE.js**: From CDN (https://cdn.jsdelivr.net/npm/three@r128/)
 
 ### No Modifications To
-- `planetesimal.html` ✅ Completely untouched
-- `scripting.js` ✅ No changes
-- `functions.js` ✅ No changes
-- `constellations.js` ✅ No changes
-- `stars.js` ✅ No changes
+- `planetesimal.html`  Completely untouched
+- `scripting.js`  No changes
+- `functions.js`  No changes
+- `constellations.js`  No changes
+- `stars.js`  No changes
 - Any existing assets
 
 ### Architectural Isolation
@@ -351,17 +356,17 @@ const controls = new SkyControls(skyScene, 'controls-container');
 
 ```
 skyview.html (Entry Point)
-    ↓
+    
 SkyScene (Orchestrator)
-    ├── HelioStateProvider (Ephemeris)
-    │   └── functions.js: vector() [Kepler Solver]
-    ├── CoordinateTransforms (Transforms)
-    ├── SkyDome (Visual Foundation)
-    ├── NakshatraManager (Constellation Lines)
-    │   └── Nakshatras.js (Data)
-    ├── TrailManager (Motion Tracking)
-    ├── RiseSetCalculator (Horizon Events)
-    └── SkyControls (Minimal UI)
+     HelioStateProvider (Ephemeris)
+        functions.js: vector() [Kepler Solver]
+     CoordinateTransforms (Transforms)
+     SkyDome (Visual Foundation)
+     NakshatraManager (Constellation Lines)
+        Nakshatras.js (Data)
+     TrailManager (Motion Tracking)
+     RiseSetCalculator (Horizon Events)
+     SkyControls (Minimal UI)
 ```
 
 ### Per-Frame Pipeline
@@ -382,7 +387,7 @@ SkyScene (Orchestrator)
 | Frame Rate | 60 FPS | ~60 FPS (with trails) |
 | Update Time | <5 ms | ~2-3 ms |
 | Memory | <5 MB | ~3-4 MB |
-| Trail Points | Max 16/body | 7 bodies × 16 = 112 total |
+| Trail Points | Max 16/body | 7 bodies x 16 = 112 total |
 | Nakshatras | 28 rendered | All 28 with lines |
 | Bodies | 7 visible | Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn |
 
@@ -414,7 +419,7 @@ SkyScene (Orchestrator)
 
 - [ ] Star catalog rendering (2000+ brightest stars)
 - [ ] Atmospheric refraction and parallax
-- [ ] Refraction-corrected rise/set (±5 minute accuracy)
+- [ ] Refraction-corrected rise/set (+/-5 minute accuracy)
 - [ ] Milky Way rendering
 - [ ] Custom observer coordinates with timezone support
 - [ ] Touch/gesture controls for mobile
@@ -483,4 +488,5 @@ For implementation details, see individual module files:
 - Detailed comments in each .js file
 - JSDoc documentation above public methods
 - Inline algorithm explanations for complex calculations
+
 

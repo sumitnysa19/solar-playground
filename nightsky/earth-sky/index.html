@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Earth Sky</title>
+    <link rel="stylesheet" href="./styles/night-sky.css" />
+    <link rel="stylesheet" href="./styles/ui.css" />
+  </head>
+  <body>
+    <canvas id="skyCanvas" aria-label="Night sky canvas"></canvas>
+    <div id="skyHud" class="skyHud" hidden></div>
+
+    <main class="app">
+      <div class="timelineBar" id="timelineBar" aria-label="Time and location controls">
+        <div class="timelineRow">
+          <div class="timelineTitle">24h Time Slider</div>
+          <div class="timelineRowRight">
+            <select id="focusObject" class="timelineSelect" aria-label="Focus sky object">
+              <option value="">(Select planet)</option>
+              <option value="sun">Sun</option>
+              <option value="moon">Moon</option>
+              <option value="venus">Venus</option>
+              <option value="jupiter">Jupiter</option>
+              <option value="mercury">Mercury</option>
+              <option value="saturn">Saturn</option>
+              <option value="mars">Mars</option>
+            </select>
+            <div class="timelineValue" id="timeOfDayLabel">-</div>
+            <input id="datePicker" type="date" aria-label="Select date" />
+            <button
+              id="advancedToggle"
+              class="collapseToggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="advancedPanel"
+              aria-label="Expand location controls"
+              title="Expand location controls"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        <div id="advancedPanel" class="advancedPanel" hidden>
+          <div class="advancedGrid">
+            <label class="field">
+              <span>Latitude (deg, north+)</span>
+              <input id="lat" type="number" step="0.0001" value="49.1044" />
+            </label>
+
+            <label class="field">
+              <span>Longitude (deg, east+)</span>
+              <input id="lon" type="number" step="0.0001" value="-122.85" />
+            </label>
+
+            <label class="field">
+              <span>Ayanamsa (deg, Lahiri default)</span>
+              <input id="ayanamsa" type="number" step="0.01" value="24.0" />
+            </label>
+          </div>
+
+          <div class="toggleRow">
+            <label class="toggle">
+              <input id="rasiBelt" type="checkbox" checked />
+              <span>Rasi belt</span>
+            </label>
+            <label class="toggle">
+              <input id="rasiLabels" type="checkbox" checked />
+              <span>Rasi labels</span>
+            </label>
+            <label class="toggle">
+              <input id="rasiTicks" type="checkbox" />
+              <span>Degree ticks</span>
+            </label>
+            <label class="toggle">
+              <input id="nakshatraLines" type="checkbox" />
+              <span>Nakshatra boundaries</span>
+            </label>
+          </div>
+
+          <div class="timeReadout muted">
+            <span>JD: <span id="jd">-</span></span>
+            <span>LST (deg): <span id="lst">-</span></span>
+          </div>
+        </div>
+
+        <div class="timelineTicks muted">
+          <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span
+          ><span>24:00</span>
+        </div>
+        <div class="timelineSliderWrap">
+          <input id="timeOfDay" type="range" min="0" max="86400" step="1" value="0" />
+          <div id="sunEvents" class="timelineEvents" aria-label="Sun events"></div>
+        </div>
+        <div class="timelineControls" aria-label="Simulation time controls">
+          <button id="timeLive" type="button" aria-pressed="false">Live</button>
+          <button id="timePlay" type="button" aria-pressed="false">Play</button>
+          <button id="timePause" type="button" aria-pressed="true">Pause</button>
+          <button id="timeFaster" type="button">Faster</button>
+          <span class="timelineSpeed" id="timeSpeed">Paused</span>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

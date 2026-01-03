@@ -1,0 +1,35 @@
+:root {
+  color-scheme: dark;
+  --bg: #070a12;
+  --panel: rgba(20, 24, 40, 0.78);
+  --text: #eef1ff;
+  --muted: rgba(238, 241, 255, 0.75);
+  --border: rgba(238, 241, 255, 0.12);
+  --accent: #7aa2ff;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: radial-gradient(1200px 600px at 30% 10%, #182045 0%, var(--bg) 60%);
+  color: var(--text);
+}
+
+canvas#skyCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  z-index: 0;
+  touch-action: none;
+}
+
+code {
+  color: var(--accent);
+}

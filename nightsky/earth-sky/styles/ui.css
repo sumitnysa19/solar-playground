@@ -1,0 +1,351 @@
+.app {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.muted {
+  color: var(--muted);
+  margin: 2px 0;
+  line-height: 1.4;
+}
+
+.error {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 138, 128, 0.35);
+  background: rgba(255, 138, 128, 0.12);
+  color: rgba(255, 230, 228, 0.95);
+  font-size: 13px;
+}
+
+.timeReadout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.timelineTop {
+  margin-bottom: 12px;
+}
+
+.field > span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+input[type="datetime-local"],
+input[type="number"],
+select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 10px;
+  box-sizing: border-box;
+}
+
+select {
+  appearance: none;
+}
+
+select option {
+  color: #111;
+}
+
+button {
+  background: rgba(122, 162, 255, 0.16);
+  color: var(--text);
+  border: 1px solid rgba(122, 162, 255, 0.35);
+  border-radius: 10px;
+  padding: 10px 10px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: rgba(122, 162, 255, 0.22);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
+}
+
+.timelineBar {
+  width: min(820px, calc(100% - 24px));
+  pointer-events: auto;
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(238, 241, 255, 0.18);
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(4px);
+}
+
+.timelineRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.timelineRowRight {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.timelineSelect {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  max-width: 160px;
+}
+
+.timelineBar input[type="date"] {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.collapseToggle {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+}
+
+.collapseToggle:hover {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.advancedPanel {
+  margin: 8px 0 10px;
+  padding: 10px 10px 12px;
+  border: 1px solid rgba(238, 241, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.10);
+}
+
+.advancedGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.advancedGrid .field:last-child {
+  grid-column: span 2;
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.toggle {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.toggle input {
+  accent-color: var(--accent);
+}
+
+.timelineTitle {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.timelineValue {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-size: 12px;
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+#timeOfDay {
+  appearance: none;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--timeTrackGradient, rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(238, 241, 255, 0.14);
+}
+
+#timeOfDay::-webkit-slider-runnable-track {
+  height: 6px;
+  background: transparent;
+}
+
+#timeOfDay::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: rgba(238, 241, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+#timeOfDay::-moz-range-track {
+  height: 6px;
+  background: transparent;
+}
+
+#timeOfDay::-moz-range-progress {
+  background: transparent;
+}
+
+#timeOfDay::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(238, 241, 255, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.timelineSliderWrap {
+  position: relative;
+}
+
+.timelineEvents {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -18px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.timelineEvent {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(238, 241, 255, 0.18);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(240, 244, 255, 0.92);
+  white-space: nowrap;
+}
+
+.timelineTicks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  margin-top: 2px;
+}
+
+.timelineDate {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.timelineControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.timelineControls button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.timelineControls button[aria-pressed="true"] {
+  background: rgba(122, 162, 255, 0.32);
+  border-color: rgba(122, 162, 255, 0.55);
+}
+
+.timelineSpeed {
+  margin-left: auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.skyHud {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 20;
+  pointer-events: auto;
+  max-width: min(560px, calc(100vw - 28px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(238, 241, 255, 0.18);
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(6px);
+  color: rgba(240, 244, 255, 0.95);
+  font-size: 13px;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+@media (max-width: 640px) {
+  .advancedGrid {
+    grid-template-columns: 1fr;
+  }
+  .timelineSpeed {
+    margin-left: 0;
+  }
+}

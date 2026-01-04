@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Vedic Horoscope</title>
+    <style>
+        body { margin: 0; background: rgba(0, 0, 0, 0.8); color: #FFD700; font-family: 'Arial', sans-serif; overflow: hidden; }
+        #container { position: relative; width: 100%; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        canvas { background: transparent; }
+        #info { position: absolute; bottom: 10px; width: 100%; text-align: center; font-size: 12px; color: #aaa; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="chart"></canvas>
+        <div id="info">North Indian Style (Sidereal)</div>
+    </div>
+    <script>
+        const canvas = document.getElementById('chart');
+        const ctx = canvas.getContext('2d');
+        let data = null;
+
+        function resize() {
+            const size = Math.min(window.innerWidth, window.innerHeight) * 0.95;
+            canvas.width = size;
+            canvas.height = size;
+            draw();
+        }
+        window.addEventListener('resize', resize);
+
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'HOROSCOPE_DATA') {
+                data = event.data.payload;
+                draw();
+            }
+        });
+
+        const RASHI_NAMES = ['Ar', 'Ta', 'Ge', 'Ca', 'Le', 'Vi', 'Li', 'Sc', 'Sa', 'Cp', 'Aq', 'Pi'];
+        const PLANET_SYMBOLS = {
+            'Sun': 'Su', 'Moon': 'Mo', 'Mars': 'Ma', 'Mercury': 'Me',
+            'Jupiter': 'Ju', 'Venus': 'Ve', 'Saturn': 'Sa', 'Rahu': 'Ra', 'Ketu': 'Ke'
+        };
+
+        function draw() {
+            if (!data) return;
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            // Draw North Indian Diamond Chart
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.rect(1, 1, w-2, h-2); // Outer box
+            
+            // Diagonals
+            ctx.moveTo(0, 0); ctx.lineTo(w, h);
+            ctx.moveTo(w, 0); ctx.lineTo(0, h);
+            
+            // Midpoints
+            ctx.moveTo(0, h/2); ctx.lineTo(w/2, 0); ctx.lineTo(w, h/2); ctx.lineTo(w/2, h); ctx.lineTo(0, h/2);
+            ctx.stroke();
+
+            // Determine Lagna (Ascendant) Rashi
+            // data.ascendant is in degrees (0-360)
+            const ascDeg = data.ascendant;
+            const ascRashiIndex = Math.floor(ascDeg / 30); // 0 = Aries
+            
+            // House Centers (North Indian Layout)
+            // House 1 is Top Diamond. House 2 is Top Left, etc. counter-clockwise? 
+            // North Indian: 
+            // 1: Top Center
+            // 2: Top Left
+            // 3: Left Top (Triangle)
+            // 4: Left Center
+            // 5: Left Bottom (Triangle)
+            // 6: Bottom Left
+            // 7: Bottom Center
+            // 8: Bottom Right
+            // 9: Right Bottom (Triangle)
+            // 10: Right Center
+            // 11: Right Top (Triangle)
+            // 12: Top Right
+            
+            const houses = [
+                { x: w/2, y: h/4 },     // 1
+                { x: w/4, y: h/8 },     // 2
+                { x: w/8, y: h/4 },     // 3
+                { x: w/4, y: h/2 },     // 4
+                { x: w/8, y: 3*h/4 },   // 5
+                { x: w/4, y: 7*h/8 },   // 6
+                { x: w/2, y: 3*h/4 },   // 7
+                { x: 3*w/4, y: 7*h/8 }, // 8
+                { x: 7*w/8, y: 3*h/4 }, // 9
+                { x: 3*w/4, y: h/2 },   // 10
+                { x: 7*w/8, y: h/4 },   // 11
+                { x: 3*w/4, y: h/8 }    // 12
+            ];
+
+            ctx.fillStyle = '#FFD700';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = 'bold ' + (w/25) + 'px Arial';
+
+            // Draw Rashi Numbers in Houses
+            // House 1 gets Ascendant Rashi. House 2 gets Asc+1, etc.
+            for (let i = 0; i < 12; i++) {
+                const rashiNum = ((ascRashiIndex + i) % 12) + 1;
+                // Place number slightly offset in the house to make room for planets
+                // For simplicity, put it at the "corner" of the house closest to center or specific spot
+                // Let's just put it in the background or smaller
+                ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+                ctx.fillText(rashiNum, houses[i].x, houses[i].y);
+            }
+            
+            // Label Lagna explicitly in House 1
+            ctx.fillStyle = 'rgba(255, 215, 0, 0.6)';
+            ctx.font = 'bold ' + (w/30) + 'px Arial';
+            ctx.fillText("Lagna", houses[0].x, houses[0].y + h/12);
+
+            // Draw Planets
+            // Group planets by Rashi
+            const planetsInRashi = Array(12).fill().map(() => []);
+            data.planets.forEach(p => {
+                const rIdx = Math.floor(p.deg / 30);
+                planetsInRashi[rIdx].push(p);
+            });
+
+            ctx.fillStyle = '#FFF';
+            ctx.font = 'bold ' + (w/30) + 'px Arial';
+
+            // Map Rashi to House Index
+            // House Index = (RashiIndex - AscRashiIndex + 12) % 12
+            for (let r = 0; r < 12; r++) {
+                const houseIdx = (r - ascRashiIndex + 12) % 12;
+                const planets = planetsInRashi[r];
+                if (planets.length > 0) {
+                    const hx = houses[houseIdx].x;
+                    const hy = houses[houseIdx].y;
+                    
+                    // Stack planets
+                    const lineHeight = w/25;
+                    const startY = hy - ((planets.length - 1) * lineHeight) / 2;
+                    
+                    planets.forEach((p, idx) => {
+                        const sym = PLANET_SYMBOLS[p.name] || p.name.substr(0, 2);
+                        // Calculate degree within sign
+                        const degInSign = p.deg % 30;
+                        const d = Math.floor(degInSign);
+                        const m = Math.floor((degInSign - d) * 60);
+                        const txt = `${sym} ${d}°`;
+                        
+                        // Color coding
+                        if (p.name === 'Sun') ctx.fillStyle = '#FFD700';
+                        else if (p.name === 'Moon') ctx.fillStyle = '#FFF';
+                        else if (p.name === 'Mars') ctx.fillStyle = '#FF4444';
+                        else if (p.name === 'Mercury') ctx.fillStyle = '#44FF44';
+                        else if (p.name === 'Jupiter') ctx.fillStyle = '#FFAA00';
+                        else if (p.name === 'Venus') ctx.fillStyle = '#00FFFF';
+                        else if (p.name === 'Saturn') ctx.fillStyle = '#8888FF';
+                        else if (p.name === 'Rahu' || p.name === 'Ketu') ctx.fillStyle = '#AAAAAA';
+                        else ctx.fillStyle = '#FFF';
+
+                        ctx.fillText(txt, hx, startY + idx * lineHeight);
+                    });
+                }
+            }
+        }
+        resize();
+    </script>
+</body>
+</html>

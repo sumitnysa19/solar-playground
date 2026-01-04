@@ -89,7 +89,15 @@ var target_exposure;
 var list = [];
 var _lastUpdateMs = null;
 var lastHyperTime = 0;
+let horoscope_mode = false;
+let horoscopeContainer = null;
 let yuga_playing = false;
+let horoscopeTourTargets = {};
+let horoscope_tour_mode = false;
+let horoscope_tour_index = -1;
+let horoscope_tour_last_time = 0;
+let currentNakshatraHighlight = null;
+const NAKSHATRA_HIGHLIGHT_SEGMENTS = 27 * 12; // For a smooth ring
 let pre_yuga_rate = 1;
 const manager = new THREE.LoadingManager();
 const universal_loader = new THREE.TextureLoader(manager)
@@ -542,28 +550,6 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // Initialize time controls UI once controls/buttons are attached
 initTimeControls();
 
-const spaceshipGeo = new THREE.ConeGeometry(1, 4, 8);
-spaceshipGeo.rotateX(Math.PI / 2);
-const spaceshipMat = new THREE.MeshNormalMaterial();
-spaceshipMat.transparent = true;
-const spaceship = new THREE.Mesh(spaceshipGeo, spaceshipMat);
-spaceship.visible = false;
-scene.add(spaceship);
-
-const mouseTarget = new THREE.Vector3();
-window.addEventListener('mousemove', function(event) {
-    // Convert mouse position to a point in 3D space
-    const mouse3D = new THREE.Vector3(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        - (event.clientY / window.innerHeight) * 2 + 1,
-        0.5
-    );
-    mouse3D.unproject(camera);
-    mouseTarget.copy(mouse3D);
-}, false);
-
-const lasers = [];
-
 function animate() {
     if (post_processing == true) {
         composer.render();
@@ -573,7 +559,33 @@ function animate() {
     }
     renderer.setAnimationLoop(animate);
 
-    if (spaceship_mode) {
+    if (horoscope_tour_mode) {
+        controls.enabled = false;
+        if (bodies.earth && bodies.earth.Position) {
+            const now = performance.now();
+            if (now - horoscope_tour_last_time > 5000) { // Switch every 5 seconds
+                horoscope_tour_index++;
+                horoscope_tour_last_time = now;
+            }
+
+            const tourList = ['Lagna', 'Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn', 'Rahu', 'Ketu'];
+            const targetName = tourList[horoscope_tour_index % tourList.length];
+            const targetPosition = horoscopeTourTargets[targetName];
+
+            // Position camera at a viewpoint near the observer on Earth
+            const observerPos = horoscopeTourTargets['Observer'] || bodies.earth.Position;
+            const desiredCamPos = observerPos.clone().add(new THREE.Vector3(0, 15, 40));
+            camera.position.lerp(desiredCamPos, 0.02);
+
+            if (targetPosition) {
+                // Smoothly interpolate the camera's look-at target
+                const newTarget = controls.target.clone().lerp(targetPosition, 0.05);
+                camera.lookAt(newTarget);
+                controls.target.copy(newTarget); // Update control's target for next frame's lerp
+            }
+        }
+    } else if (spaceship_mode) {
+        controls.enabled = false;
         // Point spaceship towards mouse target
         spaceship.lookAt(mouseTarget);
 
@@ -581,13 +593,13 @@ function animate() {
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(spaceship.quaternion);
         spaceship.position.add(forward.multiplyScalar(spaceship_speed));
-
+        
         // Attach camera to spaceship
         const cameraOffset = new THREE.Vector3(0, 2, 10); // Behind and slightly above
         cameraOffset.applyQuaternion(spaceship.quaternion);
         camera.position.copy(spaceship.position).add(cameraOffset);
         camera.lookAt(spaceship.position);
-        controls.enabled = false;
+
     } else {
         controls.enabled = true;
     }
@@ -611,6 +623,9 @@ function animate() {
             last_tour_switch_time = now;
         }
     }
+    if (!horoscope_tour_mode && !spaceship_mode) {
+        controls.update();
+    }
     sky.position.copy(camera.position);
     if (sim_run == true) {
         const now = performance.now();
@@ -619,9 +634,6 @@ function animate() {
         } else {
             hyper();
             lastHyperTime = now;
-        }
-        if (!spaceship_mode) {
-            controls.update();
         }
         updateConstellationLabels();
         updateRashiLabels();
@@ -793,7 +805,6 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
-    if (controls.handleResize) controls.handleResize();
 }
 document.getElementById("search").onclick = function () { locked = true; }
 document.getElementById("settings_button").onclick = function () {
@@ -1621,6 +1632,40 @@ function updateRashiBelt() {
             cosStart * rProjected, yOffset, sinStart * rProjected
         );
 
+        // Add degree markers
+        const DEG_TO_RAD = Math.PI / 180;
+        for (let deg = 5; deg < 30; deg += 5) {
+            const markerAngle = start + deg * DEG_TO_RAD;
+            const cosMarker = Math.cos(markerAngle);
+            const sinMarker = Math.sin(markerAngle);
+            // Make 15-degree marker slightly longer
+            const markerHeightFactor = (deg === 15) ? 0.8 : 0.4;
+            
+            positions.push(
+                cosMarker * rProjected, -yOffset * markerHeightFactor, sinMarker * rProjected,
+                cosMarker * rProjected, yOffset * markerHeightFactor, sinMarker * rProjected
+            );
+        }
+
+        // Add degree labels
+        for (let deg = 5; deg < 30; deg += 5) {
+            const labelAngle = start + deg * DEG_TO_RAD;
+            const labelRadius = rProjected * 0.9; // Position inside the belt
+            const lx = Math.cos(labelAngle) * labelRadius;
+            const lz = Math.sin(labelAngle) * labelRadius;
+            
+            const label = _makeTextSprite(String(deg) + "°", {
+                font: 'Bold 28px Arial',
+                fillStyle: '#' + new THREE.Color(color).getHexString(),
+                size: 128
+            });
+            label.material.sizeAttenuation = false;
+            label.scale.set(0.04, 0.04, 0.04);
+            label.position.set(lx, 0, lz);
+            label.renderOrder = 2;
+            group.add(label);
+        }
+
         for (let s = 0; s < stepsPerRashi; s++) {
             const a0 = start + (s / stepsPerRashi) * segmentAngle;
             const a1 = start + ((s + 1) / stepsPerRashi) * segmentAngle;
@@ -1712,6 +1757,86 @@ function updateRashiBelt() {
 }
 
 updateRashiBelt();
+
+function updateMoonLabel() {
+    if (!bodies.moon || !bodies.moon.label) return;
+
+    const moonLabel = bodies.moon.label;
+    const baseName = "Moon";
+    const defaultOptions = { font: 'Bold 24px Arial', fillStyle: 'white', size: 256 };
+
+    if (!moonLabel.visible || useWesternZodiac) {
+        // If label is not visible or we are in western mode, reset it to default if needed.
+        if (moonLabel.userData && moonLabel.userData.lastText !== baseName) {
+             _updateTextSprite(moonLabel, baseName, defaultOptions);
+        }
+        return;
+    }
+
+    // 1. Calculate Nakshatra
+    const earthPos = bodies.earth.Position;
+    const vec = new THREE.Vector3().subVectors(bodies.moon.Position, earthPos);
+    let ang = Math.atan2(vec.z, vec.x);
+    let deg = RadToDeg(ang);
+    deg = (deg - ayanamsaDeg + 360) % 360;
+    const nakshatraSizeDeg = 360 / 27;
+    const nakIndex = Math.floor(deg / nakshatraSizeDeg);
+    const nakName = NAKSHATRA_NAMES[nakIndex];
+
+    // 2. Update label text
+    const newText = `${baseName}\n(${nakName})`;
+    _updateTextSprite(moonLabel, newText, defaultOptions);
+}
+
+function initNakshatraHighlight() {
+    const yOffset = Math.sin(DegToRad(9)) * RASHI_BELT_RADIUS;
+    const pathPoints = [];
+    for (let i = 0; i <= NAKSHATRA_HIGHLIGHT_SEGMENTS; i++) {
+        const t = (i / NAKSHATRA_HIGHLIGHT_SEGMENTS) * Math.PI * 2;
+        pathPoints.push(new THREE.Vector3(Math.cos(t) * RASHI_BELT_RADIUS, 0, Math.sin(t) * RASHI_BELT_RADIUS));
+    }
+    const path = new THREE.CatmullRomCurve3(pathPoints);
+    const geo = new THREE.TubeBufferGeometry(path, NAKSHATRA_HIGHLIGHT_SEGMENTS, yOffset, 4, true);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false });
+    currentNakshatraHighlight = new THREE.Mesh(geo, mat);
+    currentNakshatraHighlight.visible = false;
+    currentNakshatraHighlight.renderOrder = 3; // On top of rashi belt fills
+    rashiBeltGroup.add(currentNakshatraHighlight);
+}
+initNakshatraHighlight();
+
+function updateCurrentNakshatraHighlight() {
+    const toggle = document.getElementById('nakshatra_highlight_toggle');
+    if (!currentNakshatraHighlight || !toggle || !toggle.checked || useWesternZodiac) {
+        if (currentNakshatraHighlight) currentNakshatraHighlight.visible = false;
+        return;
+    }
+
+    if (!bodies.moon || !bodies.moon.Position || !bodies.earth || !bodies.earth.Position) {
+        if (currentNakshatraHighlight) currentNakshatraHighlight.visible = false;
+        return;
+    }
+    
+    currentNakshatraHighlight.visible = true;
+
+    // 1. Get Moon's sidereal longitude
+    const earthPos = bodies.earth.Position;
+    const vec = new THREE.Vector3().subVectors(bodies.moon.Position, earthPos);
+    let ang = Math.atan2(vec.z, vec.x);
+    let deg = RadToDeg(ang);
+    deg = (deg - ayanamsaDeg + 360) % 360;
+
+    // 2. Get Nakshatra index
+    const nakshatraSizeDeg = 360 / 27;
+    const nakIndex = Math.floor(deg / nakshatraSizeDeg);
+
+    // 3. Rotate the highlight ring to account for ayanamsa
+    currentNakshatraHighlight.rotation.y = DegToRad(ayanamsaDeg);
+
+    // 4. Set draw range to show only the current Nakshatra segment
+    const indicesPerNakshatra = currentNakshatraHighlight.geometry.index.count / 27;
+    currentNakshatraHighlight.geometry.setDrawRange(Math.floor(nakIndex * indicesPerNakshatra), Math.floor(indicesPerNakshatra));
+}
 
 // Visual Helpers: Ecliptic Plane, Celestial Sphere, Earth Axis
 const helpersGroup = new THREE.Group();
@@ -2049,26 +2174,16 @@ const swastikaGroup = new THREE.Group();
 helpersGroup.add(swastikaGroup);
 swastikaGroup.visible = false;
 
-const swastikaLabels = ["Spring", "Winter", "Autumn", "Summer"];
-
 for (let k = 0; k < 4; k++) {
     const offset = k * 90; // 90, 180, 270 degrees
     const pts = SAPTARISHI_DATA.map(s => raDecToVector(s.ra + offset, s.dec, CONSTELLATION_RADIUS));
-    if (k > 0) { // The k=0 arm is the main Saptarishi constellation, so we only draw the other 3
-        const linePts = [];
-        sapIndices.forEach(idx => linePts.push(pts[idx]));
-        const geo = new THREE.BufferGeometry().setFromPoints(linePts);
-        const mat = new THREE.LineDashedMaterial({ color: 0xFF9933, dashSize: CONSTELLATION_RADIUS/40, gapSize: CONSTELLATION_RADIUS/80, transparent: true, opacity: 0.6, linewidth: 2 });
-        const line = new THREE.LineSegments(geo, mat);
-        line.computeLineDistances();
-        swastikaGroup.add(line);
-    }
-    const centerPos = new THREE.Vector3().addVectors(pts[3], pts[4]).multiplyScalar(0.5).multiplyScalar(1.1);
-    const label = _makeTextSprite(swastikaLabels[k], { font: 'Bold 32px Arial', fillStyle: '#FF9933' });
-    label.material.sizeAttenuation = false;
-    label.scale.set(0.15, 0.15, 0.15);
-    label.position.copy(centerPos);
-    swastikaGroup.add(label);
+    const linePts = [];
+    sapIndices.forEach(idx => linePts.push(pts[idx]));
+    const geo = new THREE.BufferGeometry().setFromPoints(linePts);
+    const mat = new THREE.LineDashedMaterial({ color: 0xFF9933, dashSize: CONSTELLATION_RADIUS/40, gapSize: CONSTELLATION_RADIUS/80, transparent: true, opacity: 0.6, linewidth: 2 });
+    const line = new THREE.LineSegments(geo, mat);
+    line.computeLineDistances();
+    swastikaGroup.add(line);
 }
 
 // 24. Galactic Center
@@ -2230,6 +2345,292 @@ NEAREST_STARS_DATA.forEach(star => {
     const line = new THREE.Line(lineGeo, lineMat);
     nearestStarsGroup.add(line);
 });
+
+// Horoscope Visualization
+const horoscopeGroup = new THREE.Group();
+scene.add(horoscopeGroup);
+
+function initHoroscope() {
+    // Create Container
+    horoscopeContainer = document.createElement('div');
+    horoscopeContainer.id = 'horoscopeContainer';
+    horoscopeContainer.style.position = 'absolute';
+    horoscopeContainer.style.top = '50px';
+    horoscopeContainer.style.right = '10px';
+    horoscopeContainer.style.width = '350px';
+    horoscopeContainer.style.height = '400px';
+    horoscopeContainer.style.minWidth = '250px';
+    horoscopeContainer.style.minHeight = '300px';
+    horoscopeContainer.style.border = '1px solid #444';
+    horoscopeContainer.style.borderRadius = '8px';
+    horoscopeContainer.style.background = 'rgba(10, 10, 20, 0.8)';
+    horoscopeContainer.style.backdropFilter = 'blur(5px)';
+    horoscopeContainer.style.display = 'none';
+    horoscopeContainer.style.zIndex = '1000';
+    horoscopeContainer.style.resize = 'both';
+    horoscopeContainer.style.overflow = 'hidden';
+
+    // Header for dragging
+    const header = document.createElement('div');
+    header.style.width = '100%';
+    header.style.height = '25px';
+    header.style.background = '#222';
+    header.style.cursor = 'move';
+    header.style.color = '#FFD700';
+    header.style.textAlign = 'center';
+    header.style.lineHeight = '25px';
+    header.textContent = 'Horoscope Chart';
+    horoscopeContainer.appendChild(header);
+
+    // Create Iframe
+    const horoscopeIframe = document.createElement('iframe');
+    horoscopeIframe.src = 'horoscope.html';
+    horoscopeIframe.style.width = '100%';
+    horoscopeIframe.style.height = 'calc(100% - 25px)';
+    horoscopeIframe.style.border = 'none';
+    horoscopeContainer.appendChild(horoscopeIframe);
+    
+    document.body.appendChild(horoscopeContainer);
+
+    // Drag logic
+    let isDragging = false;
+    let offsetX, offsetY;
+    header.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        offsetX = e.clientX - horoscopeContainer.offsetLeft;
+        offsetY = e.clientY - horoscopeContainer.offsetTop;
+        horoscopeIframe.style.pointerEvents = 'none';
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        horoscopeContainer.style.left = (e.clientX - offsetX) + 'px';
+        horoscopeContainer.style.top = (e.clientY - offsetY) + 'px';
+        horoscopeContainer.style.right = 'auto';
+        horoscopeContainer.style.bottom = 'auto';
+    });
+    document.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            horoscopeIframe.style.pointerEvents = 'auto';
+        }
+    });
+}
+initHoroscope();
+
+function updateHoroscope() {
+    if (!horoscope_mode) {
+        if (horoscopeContainer) horoscopeContainer.style.display = 'none';
+        horoscopeGroup.visible = false;
+        return;
+    }
+    if (horoscopeContainer) horoscopeContainer.style.display = 'block';
+    horoscopeGroup.visible = true;
+
+    // 1. Determine Observer Position (Lat/Lon)
+    // Use the last clicked position on Earth, or default to Ujjain (23.17, 75.78)
+    let lat = 23.17;
+    let lon = 75.78;
+    if (bodies.earth && bodies.earth.horizonLocalPos) {
+        // Recalculate lat/lon from stored local pos
+        const p = bodies.earth.horizonLocalPos.clone().normalize();
+        lat = Math.asin(p.y) * (180 / Math.PI);
+        lon = Math.atan2(p.x, p.z) * (180 / Math.PI);
+    }
+
+    // 2. Calculate Ascendant (Lagna)
+    // Need GMST and Obliquity
+    const d = J_D; // Days since J2000
+    const T = d / 36525.0;
+    const obliq = DegToRad(23.4392911 - (0.0130042 * T));
+    
+    // GMST (Greenwich Mean Sidereal Time) in degrees
+    let gmst = 280.46061837 + 360.98564736629 * d + 0.000387933 * T * T - T * T * T / 38710000;
+    gmst = (gmst % 360 + 360) % 360;
+    
+    // RAMC (Right Ascension of Medium Coeli) = LMST = GMST + Lon
+    let ramc = (gmst + lon) % 360;
+    if (ramc < 0) ramc += 360;
+    const ramcRad = DegToRad(ramc);
+    const latRad = DegToRad(lat);
+
+    // Ascendant Formula
+    // tan(Asc) = cos(RAMC) / ( -sin(RAMC)*cos(eps) + tan(lat)*sin(eps) )
+    const y = Math.cos(ramcRad);
+    const x = -Math.sin(ramcRad) * Math.cos(obliq) + Math.tan(latRad) * Math.sin(obliq);
+    let ascRad = Math.atan2(y, x);
+    let ascDeg = RadToDeg(ascRad);
+    ascDeg = (ascDeg % 360 + 360) % 360;
+
+    // Apply Ayanamsa (Sidereal)
+    const ayanamsa = ayanamsaDeg; // Calculated in update()
+    let siderealAsc = (ascDeg - ayanamsa + 360) % 360;
+
+    // VISUALIZE LAGNA (Ascendant)
+    // Use Tropical Ascendant (ascDeg) to find direction in J2000 Ecliptic (where 0 is Vernal Equinox)
+    const lagnaRad = DegToRad(ascDeg);
+    const lagnaDir = new THREE.Vector3(Math.cos(lagnaRad), 0, Math.sin(lagnaRad));
+    
+    // Raycast to Rashi Belt
+    const rashiSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), RASHI_BELT_RADIUS);
+    const ray = new THREE.Ray(bodies.earth.Position, lagnaDir);
+    let lagnaPos = new THREE.Vector3();
+    ray.intersectSphere(rashiSphere, lagnaPos);
+    if (lagnaPos.lengthSq() === 0) lagnaPos.copy(bodies.earth.Position).add(lagnaDir.multiplyScalar(RASHI_BELT_RADIUS));
+
+    const lagnaPts = [bodies.earth.Position, lagnaPos];
+    const lagnaGeo = new THREE.BufferGeometry().setFromPoints(lagnaPts);
+    const lagnaMat = new THREE.LineDashedMaterial({ color: 0x00FFFF, dashSize: 1000000, gapSize: 500000, opacity: 0.8, transparent: true, linewidth: 2 });
+    const lagnaLine = new THREE.Line(lagnaGeo, lagnaMat);
+    lagnaLine.computeLineDistances();
+    horoscopeGroup.add(lagnaLine);
+
+    const lagnaLabel = _makeTextSprite(`Lagna (Asc)\n${siderealAsc.toFixed(1)}°`, { font: 'Bold 32px Arial', fillStyle: '#00FFFF', size: 256 });
+    lagnaLabel.scale.set(0.2, 0.2, 0.2);
+    const lagnaLabelPos = lagnaPos.clone().multiplyScalar(0.95); // Slightly inside
+    lagnaLabel.position.copy(lagnaLabelPos);
+    lagnaLabel.userData.tourName = 'Lagna'; // Tag for tour
+    horoscopeGroup.add(lagnaLabel);
+
+    // 3. Calculate Planetary Positions (Geocentric Ecliptic Longitude)
+    const planets = [];
+    const planetKeys = ['sol', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
+    const earthPos = bodies.earth.Position;
+
+    planetKeys.forEach(key => {
+        const body = bodies[key];
+        if (body && body.Position) {
+            const vec = new THREE.Vector3().subVectors(body.Position, earthPos);
+            // Ecliptic Longitude (XZ plane in simulation)
+            // Note: Simulation X is Vernal Equinox? 
+            // In raDecToVector: x = R cos(ra), z = R sin(ra) (after tilt correction)
+            // So angle is atan2(z, x)
+            let ang = Math.atan2(vec.z, vec.x);
+            let deg = RadToDeg(ang);
+            deg = (deg - ayanamsa + 360) % 360;
+            
+            let name = body.name;
+            if (key === 'sol') name = 'Sun';
+            if (key === 'moon') name = 'Moon';
+            // Capitalize
+            name = name.charAt(0).toUpperCase() + name.slice(1);
+            
+            planets.push({ name: name, deg: deg });
+        }
+    });
+
+    // Rahu/Ketu
+    // Mean Node: 125.04452 - 1934.136261 * T
+    const omega = 125.04452 - 1934.136261 * T;
+    let rahuMean = (omega % 360 + 360) % 360;
+    let rahuSid = (rahuMean - ayanamsa + 360) % 360;
+    let ketuSid = (rahuSid + 180) % 360;
+    planets.push({ name: 'Rahu', deg: rahuSid });
+    planets.push({ name: 'Ketu', deg: ketuSid });
+
+    // 4. Send Data to Iframe
+    const horoscopeIframe = horoscopeContainer.querySelector('iframe');
+    if (horoscopeIframe.contentWindow) {
+        horoscopeIframe.contentWindow.postMessage({
+            type: 'HOROSCOPE_DATA',
+            payload: {
+                ascendant: siderealAsc,
+                planets: planets
+            }
+        }, '*');
+    }
+
+    // 5. Visual Lines in 3D
+    // Clear old lines
+    horoscopeTourTargets = {}; // Clear tour targets for rebuild
+    while(horoscopeGroup.children.length > 0) {
+        const c = horoscopeGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        horoscopeGroup.remove(c);
+    }
+    
+    // Re-add Lagna line/label after clearing
+    horoscopeGroup.add(lagnaLine);
+    horoscopeGroup.add(lagnaLabel);
+    horoscopeTourTargets['Lagna'] = lagnaLabelPos.clone();
+    
+    let origin = earthPos.clone();
+    if (bodies.earth.horizonPlane && bodies.earth.horizonPlane.visible) {
+        const localPos = bodies.earth.horizonLocalPos || new THREE.Vector3(0,0,0);
+        origin.add(localPos);
+    }
+
+    // Create a list of bodies to draw lines to, including their sidereal degrees
+    horoscopeTourTargets['Observer'] = origin.clone();
+    const bodiesToVisualize = [];
+    planets.forEach(p => {
+        let bodyKey;
+        if (p.name === 'Sun') bodyKey = 'sol';
+        else if (p.name === 'Rahu') bodyKey = 'rahu';
+        else if (p.name === 'Ketu') bodyKey = 'ketu';
+        else bodyKey = p.name.toLowerCase();
+
+        let position;
+        if (bodyKey === 'rahu' && grahaSpheres.length > 0) {
+            position = grahaSpheres[0].position;
+        } else if (bodyKey === 'ketu' && grahaSpheres.length > 1) {
+            position = grahaSpheres[1].position;
+        } else if (bodies[bodyKey] && bodies[bodyKey].Position) {
+            position = bodies[bodyKey].Position;
+        }
+
+        if (position) {
+            bodiesToVisualize.push({
+                name: p.name,
+                deg: p.deg,
+                position: position
+            });
+        }
+    });
+
+    bodiesToVisualize.forEach(b => {
+        // Draw line from observer to body
+        const direction = new THREE.Vector3().subVectors(b.position, origin).normalize();
+        const ray = new THREE.Ray(origin, direction);
+        // The Rashi belt is drawn at RASHI_BELT_RADIUS
+        const rashiSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), RASHI_BELT_RADIUS);
+        
+        let intersectionPoint = new THREE.Vector3();
+        ray.intersectSphere(rashiSphere, intersectionPoint);
+
+        // If for some reason there's no intersection, just project far out.
+        if (intersectionPoint.lengthSq() === 0) {
+            intersectionPoint.copy(origin).add(direction.multiplyScalar(RASHI_BELT_RADIUS * 1.1));
+        }
+        const pts = [origin, intersectionPoint];
+        const geo = new THREE.BufferGeometry().setFromPoints(pts);
+        const mat = new THREE.LineDashedMaterial({ color: 0xFFD700, dashSize: 1000000, gapSize: 500000, opacity: 0.5, transparent: true });
+        const line = new THREE.Line(geo, mat);
+        line.computeLineDistances();
+        horoscopeGroup.add(line);
+
+        // Calculate astrological data from sidereal degree
+        const rashiIndex = Math.floor(b.deg / 30);
+        const rashiName = RASHI_NAMES[rashiIndex];
+        const rashiAngle = b.deg % 30;
+        const nakshatraIndex = Math.floor(b.deg / (360 / 27));
+        const nakshatraName = NAKSHATRA_NAMES[nakshatraIndex];
+
+        // Format the text
+        const labelText = `${rashiName} ${rashiAngle.toFixed(1)}°\n(${nakshatraName})`;
+
+        // Create and position the text sprite
+        const label = _makeTextSprite(labelText, { font: 'Bold 20px Arial', fillStyle: '#FFFF88', size: 256 });
+        label.material.sizeAttenuation = false;
+        label.scale.set(0.16, 0.16, 0.16);
+
+        const midpoint = new THREE.Vector3().addVectors(origin, b.position).multiplyScalar(0.5);
+        label.position.copy(midpoint);
+        horoscopeGroup.add(label);
+        horoscopeTourTargets[b.name] = midpoint.clone();
+    });
+}
 
 // Nebulae Visualization
 const nebulaGroup = new THREE.Group();
@@ -2703,6 +3104,9 @@ function updateRashiLabels() {
             addCheckbox('nearest_stars_toggle', 'Show Nearest Stars (<10ly)', false);
             addCheckbox('nebula_toggle', 'Show Nebulae', true);
             addCheckbox('spaceship_mode_toggle', 'Spaceship Mode', false);
+            addCheckbox('horoscope_toggle', 'Show Horoscope Chart', false);
+            addCheckbox('horoscope_tour_toggle', 'Horoscope Tour', false);
+            addCheckbox('nakshatra_highlight_toggle', 'Highlight Current Nakshatra', false);
         }
         var gt = document.getElementById('grahas_toggle');
         if (gt) {
@@ -2793,6 +3197,38 @@ function updateRashiLabels() {
             smt.addEventListener('change', function() {
                 spaceship_mode = smt.checked;
                 spaceship.visible = spaceship_mode;
+            });
+        }
+        var ht = document.getElementById('horoscope_toggle');
+        if (ht) {
+            ht.checked = horoscope_mode;
+            ht.addEventListener('change', function() { horoscope_mode = ht.checked; updateHoroscope(); });
+        }
+        var htt = document.getElementById('horoscope_tour_toggle');
+        if (htt) {
+            htt.addEventListener('change', function() {
+                horoscope_tour_mode = htt.checked;
+                if (horoscope_tour_mode) {
+                    // Disable other camera modes
+                    tour_mode = false;
+                    if(document.getElementById('tour_toggle')) document.getElementById('tour_toggle').checked = false;
+                    spaceship_mode = false;
+                    if(document.getElementById('spaceship_mode_toggle')) document.getElementById('spaceship_mode_toggle').checked = false;
+                    
+                    // Auto-enable horoscope view if it's off
+                    if (!horoscope_mode) {
+                        const ht = document.getElementById('horoscope_toggle');
+                        if (ht) ht.click();
+                    }
+                    horoscope_tour_index = -1; // Reset tour
+                    horoscope_tour_last_time = performance.now();
+                }
+            });
+        }
+        var nht = document.getElementById('nakshatra_highlight_toggle');
+        if (nht) {
+            nht.addEventListener('change', function() {
+                if (currentNakshatraHighlight) currentNakshatraHighlight.visible = nht.checked;
             });
         }
         var wz = document.getElementById('western_zodiac'); 
@@ -2976,23 +3412,21 @@ bodies.universal_asteroid.Orbit.visible = false;
 function hyper() {
     var darkness = occultation(camera.position, new THREE.Vector3);
     var past = target.Position;
-    
-    if (yuga_playing) {
-        // Optimization: Only update major bodies (Sun, Planets, Moon)
-        if (bodies.sol && bodies.sol.update) bodies.sol.update();
-        const majors = [
-            bodies.mercury, bodies.venus, bodies.earth, bodies.mars, 
-            bodies.jupiter, bodies.saturn, bodies.uranus, bodies.neptune, 
-            bodies.moon
-        ];
-        majors.forEach(b => { if(b && b.SetPos) b.SetPos(); });
-    } else {
+
+    // --- OPTIMIZATION ---
+    // Only calculate planetary and asteroid positions if not in high-speed Yuga animation mode.
+    if (!yuga_playing) {
         moons.forEach(moon => moon.SetPos());
         stars.forEach(stellar => stellar.update());
     }
 
     if (bodies.earth && bodies.earth.Position) {
-        updateGrahaMarkers();
+        if (!yuga_playing) {
+            updateGrahaMarkers();
+            updateHoroscope();
+            updateMoonLabel();
+            updateCurrentNakshatraHighlight();
+        }
         earthAxisLine.position.copy(bodies.earth.Position);
         
         // Animate Precession
@@ -3175,6 +3609,13 @@ function hyper() {
             precProgressArc.geometry.attributes.position.needsUpdate = true;
         }
 
+        // Animate Swastika (Seasonal Rotation)
+        if (swastikaGroup && swastikaGroup.visible) {
+            const axis = new THREE.Vector3(0, 1, 0).applyAxisAngle(new THREE.Vector3(1, 0, 0), -CONSTELLATION_TILT);
+            const angle = -(J_D / 365.2422) * Math.PI * 2; // Rotate clockwise (Westward drift of stars at fixed solar time)
+            swastikaGroup.setRotationFromAxisAngle(axis, angle);
+        }
+
         // Animate Kalpa (Cosmic Breath)
         if (kalpaGroup && kalpaGroup.visible) {
             const time = performance.now() * 0.001;
@@ -3220,7 +3661,9 @@ function hyper() {
             });
         }
 
-        updateVoyager();
+        if (!yuga_playing) {
+            updateVoyager();
+        }
 
         // Update Precession Hand (Great Year Clock)
         if (precHand) {

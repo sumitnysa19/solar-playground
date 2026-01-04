@@ -70,6 +70,13 @@ var travelling = false;
 var locked = false;
 var high_graphics = true;
 var settings_visible = false;
+var spaceship_mode = false;
+var spaceship_speed = 0.5;
+var cinematic_mode = false;
+var tour_mode = false;
+var tour_index = 0;
+var last_tour_switch_time = 0;
+const tour_targets = ['sol', 'mercury', 'venus', 'earth', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune'];
 var help_visible = false;
 var LY_UNIT = 1e6; // scene units per light-year
 var maxStarsRadius = 0;
@@ -81,6 +88,9 @@ var event_in_progress = false;
 var target_exposure;
 var list = [];
 var _lastUpdateMs = null;
+var lastHyperTime = 0;
+let yuga_playing = false;
+let pre_yuga_rate = 1;
 const manager = new THREE.LoadingManager();
 const universal_loader = new THREE.TextureLoader(manager)
 const basisLoader = new BasisTextureLoader();
@@ -143,6 +153,8 @@ function onDocumentKeyDown(event) {
                     document.getElementById("time_backwards_button").style.zIndex = "0";
                     document.getElementById("time_pause_button").style.zIndex = "0";
                     document.getElementById("time_switch_button").style.zIndex = "0";
+                    var yd = document.getElementById("yuga_display"); if(yd) yd.style.display = "none";
+                    var ypb = document.getElementById("yuga_play_button"); if(ypb) ypb.style.display = "none";
                     UI_visible = false;
                     break;
                 case false:
@@ -160,6 +172,8 @@ function onDocumentKeyDown(event) {
                     document.getElementById("time_backwards_button").style.zIndex = "255";
                     document.getElementById("time_pause_button").style.zIndex = "255";
                     document.getElementById("time_switch_button").style.zIndex = "255";
+                    var yd = document.getElementById("yuga_display"); if(yd) yd.style.display = "block";
+                    var ypb = document.getElementById("yuga_play_button"); if(ypb) ypb.style.display = "block";
                     UI_visible = true;
                     break;
             }
@@ -528,6 +542,28 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // Initialize time controls UI once controls/buttons are attached
 initTimeControls();
 
+const spaceshipGeo = new THREE.ConeGeometry(1, 4, 8);
+spaceshipGeo.rotateX(Math.PI / 2);
+const spaceshipMat = new THREE.MeshNormalMaterial();
+spaceshipMat.transparent = true;
+const spaceship = new THREE.Mesh(spaceshipGeo, spaceshipMat);
+spaceship.visible = false;
+scene.add(spaceship);
+
+const mouseTarget = new THREE.Vector3();
+window.addEventListener('mousemove', function(event) {
+    // Convert mouse position to a point in 3D space
+    const mouse3D = new THREE.Vector3(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        - (event.clientY / window.innerHeight) * 2 + 1,
+        0.5
+    );
+    mouse3D.unproject(camera);
+    mouseTarget.copy(mouse3D);
+}, false);
+
+const lasers = [];
+
 function animate() {
     if (post_processing == true) {
         composer.render();
@@ -536,11 +572,57 @@ function animate() {
         renderer.render(scene, camera);
     }
     renderer.setAnimationLoop(animate);
+
+    if (spaceship_mode) {
+        // Point spaceship towards mouse target
+        spaceship.lookAt(mouseTarget);
+
+        // Move spaceship forward
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(spaceship.quaternion);
+        spaceship.position.add(forward.multiplyScalar(spaceship_speed));
+
+        // Attach camera to spaceship
+        const cameraOffset = new THREE.Vector3(0, 2, 10); // Behind and slightly above
+        cameraOffset.applyQuaternion(spaceship.quaternion);
+        camera.position.copy(spaceship.position).add(cameraOffset);
+        camera.lookAt(spaceship.position);
+        controls.enabled = false;
+    } else {
+        controls.enabled = true;
+    }
+
     //renderer.render(scene, camera);
-    controls.update();
+    if (cinematic_mode) {
+        const axis = new THREE.Vector3(0, 1, 0);
+        const speed = 0.0005;
+        camera.position.sub(controls.target);
+        camera.position.applyAxisAngle(axis, speed);
+        camera.position.add(controls.target);
+    }
+    if (tour_mode) {
+        const now = performance.now();
+        if (now - last_tour_switch_time > 10000) { // 10 seconds per planet
+            tour_index = (tour_index + 1) % tour_targets.length;
+            const key = tour_targets[tour_index];
+            if (bodies[key]) {
+                GoTo(bodies[key]);
+            }
+            last_tour_switch_time = now;
+        }
+    }
     sky.position.copy(camera.position);
     if (sim_run == true) {
-        hyper();
+        const now = performance.now();
+        if (Math.abs(time_rate) > 86400 && (now - lastHyperTime < 100)) {
+            // Throttle simulation updates at high speeds to save CPU
+        } else {
+            hyper();
+            lastHyperTime = now;
+        }
+        if (!spaceship_mode) {
+            controls.update();
+        }
         updateConstellationLabels();
         updateRashiLabels();
         controls.enabled = true
@@ -607,12 +689,8 @@ function click(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    if (camera.position.distanceTo(target.Position) > 30000) {
-        var intersects = raycaster.intersectObjects(major_castable);
-    }
-    else {
-        var intersects = raycaster.intersectObjects(Castable);
-    }
+    var intersects = raycaster.intersectObjects(Castable);
+
     if (intersects[0] != null) {
         info_target = intersects[0].object.owner
         document.getElementById("info").innerHTML = (intersects[0].object.owner.info);
@@ -695,12 +773,7 @@ function dbclick(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
-    if (camera.position.distanceTo(target.Position) > 30000) {
-        var intersects = raycaster.intersectObjects(major_castable);
-    }
-    else {
-        var intersects = raycaster.intersectObjects(Castable);
-    }
+    var intersects = raycaster.intersectObjects(Castable);
     if (intersects[0] != null) {
         GoTo(intersects[0].object.owner)
         document.getElementById("info").innerHTML = (intersects[0].object.owner.info);
@@ -712,6 +785,7 @@ function stopscroll() {
 window.addEventListener('resize', onWindowResize, false);
 //window.addEventListener('mousemove', onMouseMove, false);
 window.addEventListener('click', click, false);
+window.addEventListener('mousedown', dbclick, false);
 window.addEventListener('dblclick', dbclick, false);
 window.addEventListener('wheel', stopscroll, false);
 function onWindowResize() {
@@ -719,6 +793,7 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
     composer.setSize(window.innerWidth, window.innerHeight);
+    if (controls.handleResize) controls.handleResize();
 }
 document.getElementById("search").onclick = function () { locked = true; }
 document.getElementById("settings_button").onclick = function () {
@@ -906,6 +981,7 @@ const CONSTELLATION_FULL_NAMES = {
 let useWesternZodiac = false;
 let ayanamsaDeg = 23.85; // Lahiri Ayanamsa (approx J2000)
 let ayanamsaMode = 'Lahiri';
+let yugaMode = 'SriYukteswar';
 const AYANAMSA_PRESETS = {
     'Lahiri': 23.85,
     'Raman': 22.36,
@@ -1157,6 +1233,10 @@ const grahaSpheres = [];
 let rahuKetuOrbitLine = null;
 let rahuKetuAxisLine = null;
 let moonInclinedOrbitLine = null;
+let moonOrbitGrid = null;
+let precessionTrail = null;
+let greatYearLabel = null;
+let precProgressArc = null;
 
 function initGrahaMarkers() {
     GRAHA_DATA.forEach(g => {
@@ -1218,11 +1298,32 @@ function initGrahaMarkers() {
     const incLineMat = new THREE.LineBasicMaterial({ color: 0x00FFFF, transparent: true, opacity: 0.6 });
     moonInclinedOrbitLine = new THREE.LineLoop(incLineGeo, incLineMat);
     grahaGroup.add(moonInclinedOrbitLine);
+
+    // Moon Orbit Plane Grid (Yellowish)
+    moonOrbitGrid = new THREE.GridHelper(1, 20, 0xffff00, 0x555500);
+    moonOrbitGrid.material.transparent = true;
+    moonOrbitGrid.material.opacity = 0.15;
+    grahaGroup.add(moonOrbitGrid);
 }
 initGrahaMarkers();
 
 function updateGrahaMarkers() {
-    if (!grahaGroup.visible) return;
+    const toggle = document.getElementById('grahas_toggle');
+    const userVisible = toggle ? toggle.checked : true;
+    if (!userVisible) {
+        grahaGroup.visible = false;
+        return;
+    }
+    let fadeOpacity = 1.0;
+    if (bodies.earth && bodies.earth.Position) {
+        const dist = camera.position.distanceTo(bodies.earth.Position);
+        const startFade = CONSTELLATION_RADIUS * 0.4;
+        const endFade = CONSTELLATION_RADIUS * 0.6;
+        if (dist > endFade) { grahaGroup.visible = false; return; }
+        if (dist > startFade) { fadeOpacity = 1.0 - (dist - startFade) / (endFade - startFade); }
+    }
+    grahaGroup.visible = true;
+
     if (!bodies.earth || !bodies.earth.Position) return;
     if (typeof J_D === 'undefined') return;
 
@@ -1257,6 +1358,7 @@ function updateGrahaMarkers() {
 
         sprite.visible = visible;
         if (!visible) return;
+        sprite.material.opacity = fadeOpacity;
 
         const x = R * Math.cos(ang);
         const z = R * Math.sin(ang);
@@ -1312,6 +1414,20 @@ function updateGrahaMarkers() {
                 positions[i * 3 + 2] = earthPos.z + dist * Math.sin(t);
             }
             rahuKetuOrbitLine.geometry.attributes.position.needsUpdate = true;
+            rahuKetuOrbitLine.material.opacity = 0.3 * fadeOpacity;
+        }
+
+        // Update Moon Orbit Grid
+        if (moonOrbitGrid) {
+            moonOrbitGrid.position.copy(earthPos);
+            const gridSize = dist * 2.5; // Scale to be larger than orbit
+            moonOrbitGrid.scale.set(gridSize, 1, gridSize);
+
+            const inc = DegToRad(5.145);
+            const nodeRad = DegToRad(nodeDeg);
+            const axis = new THREE.Vector3(Math.cos(nodeRad), 0, Math.sin(nodeRad));
+            moonOrbitGrid.quaternion.setFromAxisAngle(axis, inc);
+            moonOrbitGrid.material.opacity = 0.15 * fadeOpacity;
         }
 
         // Update Inclined Orbit Line
@@ -1332,6 +1448,7 @@ function updateGrahaMarkers() {
                 positions[i * 3 + 2] = earthPos.z + v.z;
             }
             moonInclinedOrbitLine.geometry.attributes.position.needsUpdate = true;
+            moonInclinedOrbitLine.material.opacity = 0.6 * fadeOpacity;
         }
 
         // Update Axis Line
@@ -1343,6 +1460,7 @@ function updateGrahaMarkers() {
             posAttr.setXYZ(1, kPos.x, kPos.y, kPos.z);
             posAttr.needsUpdate = true;
             rahuKetuAxisLine.computeLineDistances();
+            rahuKetuAxisLine.material.opacity = 0.8 * fadeOpacity;
         }
 
         grahaSpheres.forEach(mesh => {
@@ -1357,7 +1475,8 @@ function updateGrahaMarkers() {
                 earthPos.z + dist * Math.sin(ang)
             );
             
-            mesh.scale.set(2, 2, 2);
+            mesh.scale.set(0.5, 0.5, 0.5);
+            if (mesh.material) { mesh.material.transparent = true; mesh.material.opacity = fadeOpacity; }
             
             if (mesh.children.length > 0) {
                 const lbl = mesh.children[0];
@@ -1390,6 +1509,7 @@ function updateGrahaMarkers() {
                     lbl.userData.lastText = newText;
                     lbl.material.needsUpdate = true;
                 }
+                lbl.material.opacity = fadeOpacity;
             }
         });
     }
@@ -1399,6 +1519,48 @@ const rashiBeltGroup = new THREE.Group();
 scene.add(rashiBeltGroup);
 rashiBeltGroup.visible = false;
 rashiBeltGroup.frustumCulled = false;
+
+const ayanamsaGroup = new THREE.Group();
+scene.add(ayanamsaGroup);
+ayanamsaGroup.visible = false;
+
+function updateAyanamsaVisuals() {
+    while (ayanamsaGroup.children.length) {
+        const c = ayanamsaGroup.children[0];
+        if (c.geometry) c.geometry.dispose();
+        if (c.material) c.material.dispose();
+        ayanamsaGroup.remove(c);
+    }
+
+    if (!ayanamsaGroup.visible) return;
+
+    const radius = CONSTELLATION_RADIUS * 0.92;
+    const angle = DegToRad(ayanamsaDeg);
+    
+    // Arc from 0 (Vernal Equinox) to angle (Sidereal Start)
+    const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, angle, false, 0);
+    const points = curve.getPoints(50);
+    const geometry = new THREE.BufferGeometry().setFromPoints(points.map(p => new THREE.Vector3(p.x, 0, p.y)));
+    const material = new THREE.LineBasicMaterial({ color: 0x00FFFF, linewidth: 2 });
+    const arc = new THREE.Line(geometry, material);
+    ayanamsaGroup.add(arc);
+
+    // Line to Sidereal 0
+    const endX = radius * Math.cos(angle);
+    const endZ = radius * Math.sin(angle);
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(endX, 0, endZ)]);
+    const lineMat = new THREE.LineDashedMaterial({ color: 0x00FFFF, dashSize: radius/20, gapSize: radius/40, transparent: true, opacity: 0.5 });
+    const line = new THREE.Line(lineGeo, lineMat);
+    line.computeLineDistances();
+    ayanamsaGroup.add(line);
+
+    const midAngle = angle / 2;
+    const labelPos = new THREE.Vector3(radius * Math.cos(midAngle), 0, radius * Math.sin(midAngle)).multiplyScalar(0.95);
+    const label = _makeTextSprite(`Ayanamsa\n${ayanamsaDeg.toFixed(2)}°`, { font: '24px Arial', fillStyle: '#00FFFF' });
+    label.position.copy(labelPos);
+    label.scale.set(0.1, 0.1, 0.1);
+    ayanamsaGroup.add(label);
+}
 
 function updateRashiBelt() {
     const group = rashiBeltGroup;
@@ -1535,8 +1697,9 @@ function updateRashiBelt() {
         const lz = Math.sin(mid) * NAK_LABEL_RADIUS;
         
         const label = _makeTextSprite(NAKSHATRA_NAMES[i], {
-            font: 'Bold 32px Arial',
-            fillStyle: '#' + new THREE.Color(labelColor).getHexString()
+            font: 'Bold 48px Arial',
+            fillStyle: '#' + new THREE.Color(labelColor).getHexString(),
+            size: 512
         });
         label.material.sizeAttenuation = false;
         label.position.set(lx, 0, lz);
@@ -1545,6 +1708,7 @@ function updateRashiBelt() {
         nakshatraLabelSprites.push(label);
     }
     }
+    updateAyanamsaVisuals();
 }
 
 updateRashiBelt();
@@ -1621,18 +1785,31 @@ const celEqLine = new THREE.Line(celEqGeo, new THREE.LineBasicMaterial({ color: 
 helpersGroup.add(celEqLine);
 
 // 3. Earth Axis (Red Line)
-const axisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -2.5, 0), new THREE.Vector3(0, 2.5, 0)]);
-const axisMat = new THREE.LineBasicMaterial({ color: 0xff0000 });
+const axisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -CONSTELLATION_RADIUS, 0), new THREE.Vector3(0, CONSTELLATION_RADIUS, 0)]);
+const axisMat = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.6 });
 const earthAxisLine = new THREE.Line(axisGeo, axisMat);
 earthAxisLine.rotation.x = -CONSTELLATION_TILT;
 helpersGroup.add(earthAxisLine);
 
-// 4. Earth Ecliptic Normal (Green Line)
-const normalGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -2.5, 0), new THREE.Vector3(0, 2.5, 0)]);
-const normalMat = new THREE.LineDashedMaterial({ color: 0x00ff00, dashSize: 0.1, gapSize: 0.1, transparent: true, opacity: 0.5 });
+// 3b. Earth Axis (Red Line - Local Scale for Zoom)
+const localAxisGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -100, 0), new THREE.Vector3(0, 100, 0)]);
+const localAxisMat = new THREE.LineBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.8 });
+const localEarthAxisLine = new THREE.Line(localAxisGeo, localAxisMat);
+helpersGroup.add(localEarthAxisLine);
+
+// 4. Earth Ecliptic Normal (Green Line - Celestial Scale)
+const normalGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -CONSTELLATION_RADIUS, 0), new THREE.Vector3(0, CONSTELLATION_RADIUS, 0)]);
+const normalMat = new THREE.LineDashedMaterial({ color: 0x00ff00, dashSize: CONSTELLATION_RADIUS / 20, gapSize: CONSTELLATION_RADIUS / 40, transparent: true, opacity: 0.5 });
 const earthNormalLine = new THREE.Line(normalGeo, normalMat);
 earthNormalLine.computeLineDistances();
 helpersGroup.add(earthNormalLine);
+
+// 4b. Earth Ecliptic Normal (Green Line - Local Scale for Zoom)
+const localNormalGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -100, 0), new THREE.Vector3(0, 100, 0)]);
+const localNormalMat = new THREE.LineDashedMaterial({ color: 0x00ff00, dashSize: 2, gapSize: 1, transparent: true, opacity: 0.8 });
+const localEarthNormalLine = new THREE.Line(localNormalGeo, localNormalMat);
+localEarthNormalLine.computeLineDistances();
+helpersGroup.add(localEarthNormalLine);
 
 // 5. Angle Arc
 const arcRadius = 1.5;
@@ -1681,7 +1858,7 @@ const equinoxSolsticeGroup = new THREE.Group();
 helpersGroup.add(equinoxSolsticeGroup);
 
 const vernalPos = new THREE.Vector3(CONSTELLATION_RADIUS, 0, 0);
-const vernalMarkerGeo = new THREE.SphereGeometry(CONSTELLATION_RADIUS * 0.015, 16, 16);
+const vernalMarkerGeo = new THREE.SphereGeometry(CONSTELLATION_RADIUS * 0.005, 16, 16);
 const vernalMarkerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 const vernalMarker = new THREE.Mesh(vernalMarkerGeo, vernalMarkerMat);
 vernalMarker.position.copy(vernalPos);
@@ -1705,13 +1882,16 @@ autumnalLabel.scale.set(0.12, 0.12, 0.12);
 autumnalLabel.position.copy(autumnalPos).multiplyScalar(1.05);
 equinoxSolsticeGroup.add(autumnalLabel);
 
+// Solstice Material (Orange)
+const solsticeMarkerMat = new THREE.MeshBasicMaterial({ color: 0xFFAA00 });
+
 // 11. Summer Solstice Marker (Intersection at +Z)
 const summerPos = new THREE.Vector3(0, 0, CONSTELLATION_RADIUS);
-const summerMarker = new THREE.Mesh(vernalMarkerGeo, vernalMarkerMat);
+const summerMarker = new THREE.Mesh(vernalMarkerGeo, solsticeMarkerMat);
 summerMarker.position.copy(summerPos);
 equinoxSolsticeGroup.add(summerMarker);
 
-const summerLabel = _makeTextSprite("Summer Solstice (♋)", { font: 'Bold 24px Arial', fillStyle: '#ffffff' });
+const summerLabel = _makeTextSprite("Summer Solstice (♋)", { font: 'Bold 24px Arial', fillStyle: '#FFAA00' });
 summerLabel.material.sizeAttenuation = false;
 summerLabel.scale.set(0.12, 0.12, 0.12);
 summerLabel.position.copy(summerPos).multiplyScalar(1.05);
@@ -1719,11 +1899,11 @@ equinoxSolsticeGroup.add(summerLabel);
 
 // 12. Winter Solstice Marker (Intersection at -Z)
 const winterPos = new THREE.Vector3(0, 0, -CONSTELLATION_RADIUS);
-const winterMarker = new THREE.Mesh(vernalMarkerGeo, vernalMarkerMat);
+const winterMarker = new THREE.Mesh(vernalMarkerGeo, solsticeMarkerMat);
 winterMarker.position.copy(winterPos);
 equinoxSolsticeGroup.add(winterMarker);
 
-const winterLabel = _makeTextSprite("Winter Solstice (♑)", { font: 'Bold 24px Arial', fillStyle: '#ffffff' });
+const winterLabel = _makeTextSprite("Winter Solstice (♑)", { font: 'Bold 24px Arial', fillStyle: '#FFAA00' });
 winterLabel.material.sizeAttenuation = false;
 winterLabel.scale.set(0.12, 0.12, 0.12);
 winterLabel.position.copy(winterPos).multiplyScalar(1.05);
@@ -1754,6 +1934,671 @@ const earthEcLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vecto
 const earthEcLineMat = new THREE.LineDashedMaterial({ color: 0x888888, dashSize: 1, gapSize: 0.5, transparent: true, opacity: 0.5 });
 const earthEcLine = new THREE.Line(earthEcLineGeo, earthEcLineMat);
 helpersGroup.add(earthEcLine);
+
+// 17. Dhruva (Polaris) Marker & Label
+const dhruvaPos = new THREE.Vector3(0, CONSTELLATION_RADIUS, 0);
+dhruvaPos.applyAxisAngle(new THREE.Vector3(1, 0, 0), -CONSTELLATION_TILT);
+
+const dhruvaMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true });
+const dhruvaGeo = new THREE.SphereGeometry(CONSTELLATION_RADIUS * 0.006, 16, 16);
+const dhruvaMarker = new THREE.Mesh(dhruvaGeo, dhruvaMat);
+dhruvaMarker.position.copy(dhruvaPos);
+dhruvaMarker.owner = {
+    name: "Dhruva (Polaris)",
+    info: "<b>Dhruva (Polaris)</b><br>The Pole Star (North Star).<br>Constellation: Ursa Minor",
+    Position: dhruvaMarker.position,
+    Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+    color: 0xffffff
+};
+Castable.push(dhruvaMarker);
+helpersGroup.add(dhruvaMarker);
+
+// 17b. Dynamic Pole Star Label
+const poleStarLabel = _makeTextSprite("Polaris", { font: 'Bold 40px Arial', fillStyle: '#AAAAFF', size: 512 });
+poleStarLabel.material.sizeAttenuation = false;
+poleStarLabel.scale.set(0.12, 0.12, 0.12);
+helpersGroup.add(poleStarLabel);
+
+// 18. North/South on Earth Normal Line (Dashed)
+const northLabel = _makeTextSprite("North", { font: 'Bold 32px Arial', fillStyle: '#00ff00' });
+northLabel.material.sizeAttenuation = false;
+northLabel.scale.set(0.15, 0.15, 0.15);
+northLabel.position.set(0, CONSTELLATION_RADIUS * 1.02, 0);
+helpersGroup.add(northLabel);
+
+const southLabel = _makeTextSprite("South", { font: 'Bold 32px Arial', fillStyle: '#00ff00' });
+southLabel.material.sizeAttenuation = false;
+southLabel.scale.set(0.15, 0.15, 0.15);
+southLabel.position.set(0, -CONSTELLATION_RADIUS * 1.02, 0);
+helpersGroup.add(southLabel);
+
+// 19. Saptarishi (Big Dipper)
+const saptarishiGroup = new THREE.Group();
+helpersGroup.add(saptarishiGroup);
+const saptarishiLabelsGroup = new THREE.Group();
+saptarishiGroup.add(saptarishiLabelsGroup);
+const saptarishiStars = [];
+
+const SAPTARISHI_DATA = [
+    { name: "Kratu (Dubhe)", ra: 165.93, dec: 61.75 }, // Alpha
+    { name: "Pulaha (Merak)", ra: 165.46, dec: 56.38 }, // Beta
+    { name: "Pulastya (Phecda)", ra: 178.46, dec: 53.69 }, // Gamma
+    { name: "Atri (Megrez)", ra: 183.86, dec: 57.03 }, // Delta
+    { name: "Angiras (Alioth)", ra: 193.51, dec: 55.96 }, // Epsilon
+    { name: "Vashistha (Mizar)", ra: 200.98, dec: 54.92 }, // Zeta
+    { name: "Marichi (Alkaid)", ra: 206.88, dec: 49.31 }  // Eta
+];
+
+// Calculate positions
+const saptarishiPoints = SAPTARISHI_DATA.map(s => raDecToVector(s.ra, s.dec, CONSTELLATION_RADIUS));
+
+// Draw Stars & Labels
+saptarishiPoints.forEach((pos, i) => {
+    const starGeo = new THREE.SphereGeometry(CONSTELLATION_RADIUS * 0.005, 16, 16);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true });
+    const starMesh = new THREE.Mesh(starGeo, starMat);
+    starMesh.position.copy(pos).multiplyScalar(0.995); // Slightly closer to avoid z-fighting
+    
+    starMesh.owner = {
+        name: SAPTARISHI_DATA[i].name,
+        info: `<b>${SAPTARISHI_DATA[i].name}</b><br>Saptarishi (Big Dipper)`,
+        Position: starMesh.position,
+        Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+        color: 0xffffff
+    };
+    Castable.push(starMesh);
+    
+    saptarishiGroup.add(starMesh);
+    saptarishiStars.push(starMesh);
+
+    const label = _makeTextSprite(SAPTARISHI_DATA[i].name, { font: '32px Arial', fillStyle: '#FFA500', size: 512 });
+    label.material.sizeAttenuation = false;
+    label.scale.set(0.15, 0.15, 0.15);
+    label.position.copy(pos).multiplyScalar(1.01);
+    label.position.y += CONSTELLATION_RADIUS * 0.025;
+    saptarishiLabelsGroup.add(label);
+});
+
+// Draw Constellation Lines
+// Sequence: Alkaid(6)->Mizar(5)->Alioth(4)->Megrez(3)->Phecda(2)->Merak(1)->Dubhe(0)->Megrez(3)
+const sapIndices = [6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0, 3];
+const sapLinePts = [];
+sapIndices.forEach(idx => sapLinePts.push(saptarishiPoints[idx]));
+const sapLineGeo = new THREE.BufferGeometry().setFromPoints(sapLinePts);
+const sapLineMat = new THREE.LineBasicMaterial({ color: 0xFFFF00, transparent: true, opacity: 1.0, linewidth: 3 });
+const sapLine = new THREE.LineSegments(sapLineGeo, sapLineMat);
+saptarishiGroup.add(sapLine);
+
+// Pointer to Dhruva (Dubhe -> Dhruva)
+const pointerGeo = new THREE.BufferGeometry().setFromPoints([saptarishiPoints[0], dhruvaPos]);
+const pointerMat = new THREE.LineDashedMaterial({ color: 0xFFD700, dashSize: CONSTELLATION_RADIUS/30, gapSize: CONSTELLATION_RADIUS/60, transparent: true, opacity: 0.5 });
+const pointerLine = new THREE.Line(pointerGeo, pointerMat);
+pointerLine.computeLineDistances();
+saptarishiGroup.add(pointerLine);
+
+// Main Label
+const sapLabel = _makeTextSprite("Saptarishi (Big Dipper)", { font: 'Bold 40px Arial', fillStyle: '#FFD700', size: 512 });
+sapLabel.material.sizeAttenuation = false;
+sapLabel.scale.set(0.15, 0.15, 0.15);
+const centerPos = new THREE.Vector3().addVectors(saptarishiPoints[3], saptarishiPoints[4]).multiplyScalar(0.5).multiplyScalar(1.05);
+sapLabel.position.copy(centerPos);
+saptarishiGroup.add(sapLabel);
+
+// 23. Swastika Pattern (Seasonal Rotation of Saptarishi)
+const swastikaGroup = new THREE.Group();
+helpersGroup.add(swastikaGroup);
+swastikaGroup.visible = false;
+
+const swastikaLabels = ["Spring", "Winter", "Autumn", "Summer"];
+
+for (let k = 0; k < 4; k++) {
+    const offset = k * 90; // 90, 180, 270 degrees
+    const pts = SAPTARISHI_DATA.map(s => raDecToVector(s.ra + offset, s.dec, CONSTELLATION_RADIUS));
+    if (k > 0) { // The k=0 arm is the main Saptarishi constellation, so we only draw the other 3
+        const linePts = [];
+        sapIndices.forEach(idx => linePts.push(pts[idx]));
+        const geo = new THREE.BufferGeometry().setFromPoints(linePts);
+        const mat = new THREE.LineDashedMaterial({ color: 0xFF9933, dashSize: CONSTELLATION_RADIUS/40, gapSize: CONSTELLATION_RADIUS/80, transparent: true, opacity: 0.6, linewidth: 2 });
+        const line = new THREE.LineSegments(geo, mat);
+        line.computeLineDistances();
+        swastikaGroup.add(line);
+    }
+    const centerPos = new THREE.Vector3().addVectors(pts[3], pts[4]).multiplyScalar(0.5).multiplyScalar(1.1);
+    const label = _makeTextSprite(swastikaLabels[k], { font: 'Bold 32px Arial', fillStyle: '#FF9933' });
+    label.material.sizeAttenuation = false;
+    label.scale.set(0.15, 0.15, 0.15);
+    label.position.copy(centerPos);
+    swastikaGroup.add(label);
+}
+
+// 24. Galactic Center
+const galacticCenterGroup = new THREE.Group();
+helpersGroup.add(galacticCenterGroup);
+const gcRa = 266.4168;
+const gcDec = -29.0078;
+const gcPos = raDecToVector(gcRa, gcDec, CONSTELLATION_RADIUS * 0.95);
+const gcGeo = new THREE.SphereGeometry(CONSTELLATION_RADIUS * 0.002, 16, 16);
+const gcMat = new THREE.MeshBasicMaterial({ color: 0xFF00FF, transparent: true, opacity: 0.8 });
+const gcMesh = new THREE.Mesh(gcGeo, gcMat);
+gcMesh.position.copy(gcPos);
+gcMesh.owner = {
+    name: "Galactic Center",
+    info: "<b>Galactic Center</b><br>Sagittarius A*<br>Distance: ~26,000 ly",
+    Position: gcMesh.position,
+    Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+    color: 0xFF00FF
+};
+Castable.push(gcMesh);
+galacticCenterGroup.add(gcMesh);
+const gcLabel = _makeTextSprite("Galactic Center", { font: 'Bold 32px Arial', fillStyle: '#FF00FF', size: 512 });
+gcLabel.scale.set(0.15, 0.15, 0.15);
+gcLabel.material.sizeAttenuation = false;
+gcLabel.position.copy(gcPos).multiplyScalar(1.02);
+gcLabel.position.y += CONSTELLATION_RADIUS * 0.02;
+galacticCenterGroup.add(gcLabel);
+
+// Line to Galactic Center
+const gcLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), gcPos]);
+const gcLineMat = new THREE.LineDashedMaterial({ color: 0xFF00FF, dashSize: CONSTELLATION_RADIUS / 20, gapSize: CONSTELLATION_RADIUS / 40, transparent: true, opacity: 0.4 });
+const gcLine = new THREE.Line(gcLineGeo, gcLineMat);
+gcLine.computeLineDistances();
+galacticCenterGroup.add(gcLine);
+
+const gcDistLabel = _makeTextSprite("Distance: ~26,000 ly", { font: 'Bold 24px Arial', fillStyle: '#FF00FF', size: 256 });
+gcDistLabel.material.sizeAttenuation = false;
+gcDistLabel.scale.set(0.12, 0.12, 0.12);
+gcDistLabel.visible = true;
+gcDistLabel.position.copy(gcPos).multiplyScalar(0.5);
+galacticCenterGroup.add(gcDistLabel);
+
+// Voyager 1 Marker
+const voyagerGroup = new THREE.Group();
+helpersGroup.add(voyagerGroup);
+
+const voyagerGeo = new THREE.SphereGeometry(200, 16, 16);
+const voyagerMat = new THREE.MeshBasicMaterial({ color: 0x00AAFF });
+const voyagerMesh = new THREE.Mesh(voyagerGeo, voyagerMat);
+voyagerMesh.owner = {
+    name: "Voyager 1",
+    info: "<b>Voyager 1</b><br>Launched: 1977<br>Interstellar Space",
+    Position: voyagerMesh.position,
+    Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+    color: 0x00AAFF
+};
+Castable.push(voyagerMesh);
+voyagerGroup.add(voyagerMesh);
+
+const voyagerLabel = _makeTextSprite("Voyager 1", { font: '24px Arial', fillStyle: '#00AAFF' });
+voyagerLabel.material.sizeAttenuation = false;
+voyagerLabel.scale.set(0.1, 0.1, 0.1);
+voyagerGroup.add(voyagerLabel);
+
+const voyagerLineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+const voyagerLineMat = new THREE.LineDashedMaterial({ color: 0x00AAFF, dashSize: 2000, gapSize: 1000, transparent: true, opacity: 0.4 });
+const voyagerLine = new THREE.Line(voyagerLineGeo, voyagerLineMat);
+voyagerGroup.add(voyagerLine);
+
+function updateVoyager() {
+    if (!voyagerGroup.visible) return;
+    const distAU = 75 + 360 * J_C;
+    const distScene = distAU * 14960;
+    const pos = raDecToVector(258.25, 12.13, distScene);
+    voyagerMesh.position.copy(pos);
+    voyagerLabel.position.copy(pos).multiplyScalar(1.02);
+    const positions = voyagerLine.geometry.attributes.position.array;
+    positions[0] = 0; positions[1] = 0; positions[2] = 0;
+    positions[3] = pos.x; positions[4] = pos.y; positions[5] = pos.z;
+    voyagerLine.geometry.attributes.position.needsUpdate = true;
+    voyagerLine.computeLineDistances();
+    voyagerMesh.owner.info = `<b>Voyager 1</b><br>Dist: ${distAU.toFixed(2)} AU<br>Speed: 17 km/s`;
+    if (info_target === voyagerMesh.owner && document.getElementById("info")) {
+         document.getElementById("info").innerHTML = voyagerMesh.owner.info;
+    }
+}
+
+// Andromeda Galaxy (M31)
+const andromedaGroup = new THREE.Group();
+helpersGroup.add(andromedaGroup);
+
+// RA 00h 42m 44s = 10.68 deg, Dec +41d 16m 09s = 41.27 deg
+const m31Pos = raDecToVector(10.68, 41.27, CONSTELLATION_RADIUS * 0.92);
+// Flattened sphere to look like a galaxy disk
+const m31Geo = new THREE.SphereGeometry(CONSTELLATION_RADIUS * 0.015, 32, 16);
+m31Geo.applyMatrix4(new THREE.Matrix4().makeScale(1, 1, 0.2)); 
+const m31Mat = new THREE.MeshBasicMaterial({ color: 0xAAAAFF, transparent: true, opacity: 0.6 });
+const m31Mesh = new THREE.Mesh(m31Geo, m31Mat);
+m31Mesh.position.copy(m31Pos);
+m31Mesh.lookAt(0,0,0); 
+m31Mesh.owner = {
+    name: "Andromeda Galaxy (M31)",
+    info: "<b>Andromeda Galaxy (M31)</b><br>Distance: ~2.5 million ly<br>Spiral Galaxy",
+    Position: m31Mesh.position,
+    Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+    color: 0xAAAAFF
+};
+Castable.push(m31Mesh);
+andromedaGroup.add(m31Mesh);
+
+const m31Label = _makeTextSprite("Andromeda (M31)", { font: 'Bold 24px Arial', fillStyle: '#AAAAFF', size: 256 });
+m31Label.material.sizeAttenuation = false;
+m31Label.scale.set(0.12, 0.12, 0.12);
+m31Label.position.copy(m31Pos).multiplyScalar(1.02);
+andromedaGroup.add(m31Label);
+
+// Nearest Stars Visualization
+const nearestStarsGroup = new THREE.Group();
+helpersGroup.add(nearestStarsGroup);
+nearestStarsGroup.visible = false;
+
+const NEAREST_STARS_DATA = [
+    { name: "Proxima Centauri", ra: 217.43, dec: -62.68, dist: 4.24, color: 0xFF0000 },
+    { name: "Alpha Centauri", ra: 219.90, dec: -60.83, dist: 4.37, color: 0xFFFFCC },
+    { name: "Barnard's Star", ra: 269.45, dec: 4.69, dist: 5.96, color: 0xFF4400 },
+    { name: "Wolf 359", ra: 164.12, dec: 7.01, dist: 7.78, color: 0xFF0000 },
+    { name: "Lalande 21185", ra: 165.83, dec: 35.97, dist: 8.29, color: 0xFF8800 },
+    { name: "Sirius", ra: 101.28, dec: -16.71, dist: 8.60, color: 0xAADDFF },
+    { name: "Luyten 726-8", ra: 24.75, dec: -17.95, dist: 8.73, color: 0xFF0000 },
+    { name: "Ross 154", ra: 282.45, dec: -23.83, dist: 9.68, color: 0xFF0000 }
+];
+
+NEAREST_STARS_DATA.forEach(star => {
+    const pos = raDecToVector(star.ra, star.dec, star.dist * LY_UNIT);
+    
+    // Star Marker
+    const geo = new THREE.SphereGeometry(LY_UNIT * 0.1, 8, 8);
+    const mat = new THREE.MeshBasicMaterial({ color: star.color });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.copy(pos);
+    mesh.owner = {
+        name: star.name,
+        info: `<b>${star.name}</b><br>Distance: ${star.dist} ly`,
+        Position: mesh.position,
+        Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+        color: star.color
+    };
+    Castable.push(mesh);
+    nearestStarsGroup.add(mesh);
+
+    const label = _makeTextSprite(star.name, { font: '24px Arial', fillStyle: '#' + new THREE.Color(star.color).getHexString(), size: 256 });
+    label.material.sizeAttenuation = false;
+    label.scale.set(0.16, 0.16, 0.16);
+    label.position.copy(pos).multiplyScalar(1.05);
+    nearestStarsGroup.add(label);
+
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), pos]);
+    const lineMat = new THREE.LineBasicMaterial({ color: star.color, transparent: true, opacity: 0.3 });
+    const line = new THREE.Line(lineGeo, lineMat);
+    nearestStarsGroup.add(line);
+});
+
+// Nebulae Visualization
+const nebulaGroup = new THREE.Group();
+helpersGroup.add(nebulaGroup);
+
+function createNebulaTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.4, 'rgba(255,255,255,0.3)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,64,64);
+    const tex = new THREE.Texture(canvas);
+    tex.needsUpdate = true;
+    return tex;
+}
+const nebulaTex = createNebulaTexture();
+
+function addNebula(name, ra, dec, distLY, color, sizeLY, count, shape = 'sphere') {
+    const pos = raDecToVector(ra, dec, distLY * LY_UNIT);
+    const mat = new THREE.SpriteMaterial({ 
+        map: nebulaTex, 
+        color: color, 
+        transparent: true, 
+        opacity: 0.2,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+    
+    const group = new THREE.Group();
+    group.position.copy(pos);
+    
+    const rot = new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    
+    // Create a cluster of sprites
+    for(let i=0; i<count; i++) {
+        const sprite = new THREE.Sprite(mat);
+        let x, y, z;
+        const R = sizeLY * LY_UNIT;
+
+        if (shape === 'ring') {
+            const theta = Math.random() * Math.PI * 2;
+            const r = R * (0.8 + 0.2 * Math.random());
+            x = r * Math.cos(theta);
+            z = r * Math.sin(theta);
+            y = (Math.random() - 0.5) * R * 0.2;
+        } else if (shape === 'filament') {
+            const t = (Math.random() - 0.5) * 2;
+            x = t * R;
+            y = Math.sin(t * Math.PI) * R * 0.3 + (Math.random() - 0.5) * R * 0.2;
+            z = (Math.random() - 0.5) * R * 0.2;
+        } else if (shape === 'ellipsoid') {
+            const r = R * Math.pow(Math.random(), 0.5);
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            x = r * Math.sin(phi) * Math.cos(theta) * 1.5;
+            y = r * Math.sin(phi) * Math.sin(theta) * 0.7;
+            z = r * Math.cos(phi) * 0.7;
+        } else {
+            // Sphere
+            const r = R * Math.pow(Math.random(), 0.5);
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            x = r * Math.sin(phi) * Math.cos(theta);
+            y = r * Math.sin(phi) * Math.sin(theta);
+            z = r * Math.cos(phi);
+        }
+
+        const p = new THREE.Vector3(x, y, z);
+        if (shape !== 'sphere') p.applyEuler(rot);
+        sprite.position.copy(p);
+        
+        const s = sizeLY * LY_UNIT * (0.5 + Math.random());
+        sprite.scale.set(s, s, s);
+        sprite.userData.baseScale = sprite.scale.clone();
+        group.add(sprite);
+    }
+    
+    // Add Label
+    const labelText = `${name} (${distLY} ly)`;
+    const label = _makeTextSprite(labelText, { font: 'Bold 32px Arial', fillStyle: '#' + new THREE.Color(color).getHexString(), size: 512 });
+    label.material.sizeAttenuation = false;
+    label.scale.set(0.2, 0.2, 0.2);
+    // Position label slightly above the nebula center
+    label.position.set(0, sizeLY * LY_UNIT * 0.8, 0);
+    group.add(label);
+
+    // Add Hit Target for Raycasting (Go To)
+    const hitGeo = new THREE.SphereGeometry(sizeLY * LY_UNIT * 0.5, 8, 8);
+    const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+    const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+    const ownerData = {
+        name: name,
+        info: `<b>${name}</b><br>Distance: ${distLY} ly<br>Type: Nebula`,
+        Position: group.position,
+        Orbit: { visible: false, material: { uniforms: { colorA: { value: new THREE.Color() } }, needsUpdate: false } },
+        color: color
+    };
+    hitMesh.owner = ownerData;
+    label.owner = ownerData;
+    Castable.push(hitMesh);
+    Castable.push(label);
+    group.add(hitMesh);
+    
+    nebulaGroup.add(group);
+}
+
+addNebula("Orion Nebula", 83.8, -5.38, 1344, 0xFF99CC, 150, 20, 'sphere');
+addNebula("Crab Nebula", 83.6, 22.0, 6500, 0x88CCFF, 80, 15, 'ellipsoid');
+addNebula("Eagle Nebula", 274.7, -13.8, 7000, 0xFFCC88, 200, 20, 'sphere');
+addNebula("Lagoon Nebula", 271.0, -24.3, 4100, 0xFF88AA, 180, 18, 'sphere');
+addNebula("Carina Nebula", 161.2, -59.8, 8500, 0xCC88FF, 400, 25, 'sphere');
+addNebula("Helix Nebula", 337.4, -20.8, 650, 0x88FFCC, 25, 10, 'ring');
+addNebula("Trifid Nebula", 270.6, -23.0, 5200, 0xFF99AA, 120, 18, 'sphere');
+addNebula("Ring Nebula", 283.4, 33.0, 2000, 0x88FF88, 20, 10, 'ring');
+addNebula("Dumbbell Nebula", 299.9, 22.7, 1360, 0x88FFFF, 25, 12, 'ellipsoid');
+addNebula("Omega Nebula", 275.2, -16.1, 5500, 0xFF6666, 100, 18, 'ellipsoid');
+addNebula("Rosette Nebula", 98.0, 4.9, 5000, 0xFF4444, 300, 22, 'ring');
+addNebula("Horsehead Nebula", 85.2, -2.4, 1500, 0xCC4444, 40, 12, 'filament');
+addNebula("Veil Nebula", 311.4, 30.7, 2400, 0xAAAAFF, 250, 20, 'filament');
+addNebula("North America Nebula", 314.7, 44.3, 2200, 0xFF5555, 250, 20, 'sphere');
+addNebula("Bubble Nebula", 350.2, 61.2, 7100, 0xFF88FF, 100, 15, 'ring');
+addNebula("Cat's Eye Nebula", 269.5, 66.6, 3300, 0x88FFFF, 20, 10, 'ellipsoid');
+addNebula("Heart Nebula", 38.2, 61.4, 7500, 0xFF4466, 400, 25, 'sphere');
+addNebula("Soul Nebula", 42.8, 60.4, 6500, 0xCC6699, 350, 25, 'sphere');
+
+// 20. Precession Cone
+const precessionGroup = new THREE.Group();
+helpersGroup.add(precessionGroup);
+
+const precRadius = CONSTELLATION_RADIUS * Math.sin(CONSTELLATION_TILT);
+const precY = CONSTELLATION_RADIUS * Math.cos(CONSTELLATION_TILT);
+const precCurve = new THREE.EllipseCurve(0, 0, precRadius, precRadius, 0, 2 * Math.PI, false, 0);
+const precPts2D = precCurve.getPoints(64);
+const precPts3D = precPts2D.map(p => new THREE.Vector3(p.x, precY, p.y));
+const precGeo = new THREE.BufferGeometry().setFromPoints(precPts3D);
+const precMat = new THREE.LineBasicMaterial({ color: 0x00FF00, transparent: true, opacity: 0.3 });
+const precCircle = new THREE.LineLoop(precGeo, precMat);
+precessionGroup.add(precCircle);
+
+const coneLinesPts = [];
+for(let i=0; i<precPts3D.length; i+=8) { coneLinesPts.push(new THREE.Vector3(0,0,0)); coneLinesPts.push(precPts3D[i]); }
+const coneLinesGeo = new THREE.BufferGeometry().setFromPoints(coneLinesPts);
+const coneLinesMat = new THREE.LineBasicMaterial({ color: 0x00FF00, transparent: true, opacity: 0.15 });
+const coneLines = new THREE.LineSegments(coneLinesGeo, coneLinesMat);
+precessionGroup.add(coneLines);
+
+// Yuga Arcs (Great Year Sectors)
+// Model: Satya (Top), Kali (Bottom), with Treta/Dwapara in between.
+// Angles relative to center (0 is Top/North on the circle)
+const yugaSegments = [
+    { name: "Asc Kali (1200y)", color: 0xFF3333, start: 247.5, end: 265.5 },
+    { name: "Asc Dwapara (2400y)", color: 0xFF8C00, start: 265.5, end: 301.5 },
+    { name: "Asc Treta (3600y)", color: 0x00BFFF, start: 301.5, end: 355.5 },
+    { name: "Asc Satya (4800y)", color: 0xFFD700, start: 355.5, end: 427.5 },
+    { name: "Desc Satya (4800y)", color: 0xFFD700, start: 67.5, end: 139.5 },
+    { name: "Desc Treta (3600y)", color: 0x00BFFF, start: 139.5, end: 193.5 },
+    { name: "Desc Dwapara (2400y)", color: 0xFF8C00, start: 193.5, end: 229.5 },
+    { name: "Desc Kali (1200y)", color: 0xFF3333, start: 229.5, end: 247.5 }
+];
+
+function _makeYugaLabelMesh(text, color, angleRad, radius) {
+    const canvas = document.createElement('canvas');
+    const w = 1024;
+    const h = 256;
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 60px Arial';
+    ctx.fillStyle = '#' + new THREE.Color(color).getHexString();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, w / 2, h / 2);
+
+    const tex = new THREE.Texture(canvas);
+    tex.needsUpdate = true;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    const aspect = w / h;
+    const worldHeight = radius * 0.12; 
+    const worldWidth = worldHeight * aspect;
+    const geo = new THREE.PlaneGeometry(worldWidth, worldHeight);
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(Math.cos(angleRad) * radius, precY, Math.sin(angleRad) * radius);
+    mesh.rotation.set(-Math.PI / 2, 0, angleRad - Math.PI / 2); // Lay flat and rotate tangent
+    return mesh;
+}
+
+yugaSegments.forEach(seg => {
+    const startRad = DegToRad(seg.start);
+    const endRad = DegToRad(seg.end);
+    const curve = new THREE.EllipseCurve(0, 0, precRadius, precRadius, startRad, endRad, false, 0);
+    const pts = curve.getPoints(64);
+    const pts3D = pts.map(p => new THREE.Vector3(p.x, precY, p.y));
+    
+    const path = new THREE.CatmullRomCurve3(pts3D);
+    const tubeGeo = new THREE.TubeBufferGeometry(path, 64, precRadius * 0.01, 8, false);
+    const mat = new THREE.MeshBasicMaterial({ color: seg.color, transparent: true, opacity: 0.8 });
+    const arc = new THREE.Mesh(tubeGeo, mat);
+    precessionGroup.add(arc);
+    seg.mesh = arc;
+    
+    // Label
+    const midAngle = (seg.start + seg.end) / 2;
+    const midRad = DegToRad(midAngle); 
+    const label = _makeYugaLabelMesh(seg.name, seg.color, midRad, precRadius * 1.12);
+    precessionGroup.add(label);
+    seg.label = label;
+});
+
+// Great Year Clock Hand & Dial
+const precHandGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, precY, 0), new THREE.Vector3(0, precY, precRadius)]);
+const precHandMat = new THREE.LineBasicMaterial({ color: 0xFF00FF, linewidth: 2 });
+const precHand = new THREE.Line(precHandGeo, precHandMat);
+precessionGroup.add(precHand);
+
+for(let i=0; i<12; i++) {
+    const angle = (i / 12) * Math.PI * 2;
+    const x1 = Math.sin(angle) * precRadius * 0.9;
+    const z1 = Math.cos(angle) * precRadius * 0.9;
+    const x2 = Math.sin(angle) * precRadius * 1.1;
+    const z2 = Math.cos(angle) * precRadius * 1.1;
+    const tickGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, precY, z1), new THREE.Vector3(x2, precY, z2)]);
+    const tickMat = new THREE.LineBasicMaterial({ color: 0xFF00FF, transparent: true, opacity: 0.5 });
+    const tick = new THREE.Line(tickGeo, tickMat);
+    precessionGroup.add(tick);
+}
+
+// 21. Precession Trail (Traces the axis tip)
+const precTrailGeo = new THREE.BufferGeometry();
+const precTrailMaxPoints = 2000;
+const precTrailPts = new Float32Array(precTrailMaxPoints * 3);
+precTrailGeo.setAttribute('position', new THREE.BufferAttribute(precTrailPts, 3));
+precTrailGeo.setDrawRange(0, 0);
+const precTrailMat = new THREE.LineBasicMaterial({ color: 0xFF00FF, transparent: true, opacity: 0.5 });
+precessionTrail = new THREE.Line(precTrailGeo, precTrailMat);
+precessionTrail.userData = { points: [] };
+helpersGroup.add(precessionTrail);
+
+// 22. Great Year Label & Progress Arc
+greatYearLabel = _makeTextSprite("Great Year", { font: 'Bold 40px Arial', fillStyle: '#FF00FF', size: 512 });
+greatYearLabel.material.sizeAttenuation = false;
+greatYearLabel.scale.set(0.12, 0.12, 0.12);
+helpersGroup.add(greatYearLabel);
+
+const precArcGeo = new THREE.BufferGeometry();
+const precArcPts = new Float32Array(303 * 3); // 100 segments * 3 coords
+precArcGeo.setAttribute('position', new THREE.BufferAttribute(precArcPts, 3));
+precArcGeo.setDrawRange(0, 0);
+const precArcMat = new THREE.LineBasicMaterial({ color: 0xFF00FF, linewidth: 2 });
+precProgressArc = new THREE.Line(precArcGeo, precArcMat);
+precessionGroup.add(precProgressArc);
+
+// 25. Manvantara Visualization (71 Mahayugas)
+const manvantaraGroup = new THREE.Group();
+helpersGroup.add(manvantaraGroup);
+manvantaraGroup.visible = false;
+
+const manRadius = precRadius * 1.4;
+const manCurve = new THREE.EllipseCurve(0, 0, manRadius, manRadius, 0, 2 * Math.PI, false, 0);
+const manPts = manCurve.getPoints(142);
+const manGeo = new THREE.BufferGeometry().setFromPoints(manPts.map(p => new THREE.Vector3(p.x, precY, p.y)));
+const manMat = new THREE.LineBasicMaterial({ color: 0x00FFFF, transparent: true, opacity: 0.4 });
+const manRing = new THREE.LineLoop(manGeo, manMat);
+manvantaraGroup.add(manRing);
+
+for(let i=0; i<71; i++) {
+    const angle = (i / 71) * Math.PI * 2;
+    // 28th Mahayuga (index 27)
+    const isCurrent = (i === 27);
+    
+    const rInner = manRadius * 0.96;
+    const rOuter = manRadius * 1.04;
+    const x1 = Math.sin(angle) * rInner;
+    const z1 = Math.cos(angle) * rInner;
+    const x2 = Math.sin(angle) * rOuter;
+    const z2 = Math.cos(angle) * rOuter;
+    
+    const tickGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, precY, z1), new THREE.Vector3(x2, precY, z2)]);
+    const color = isCurrent ? 0xFFFFFF : 0x008888;
+    const opacity = isCurrent ? 1.0 : 0.3;
+    const tickMat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: opacity });
+    const tick = new THREE.Line(tickGeo, tickMat);
+    manvantaraGroup.add(tick);
+    
+    if (isCurrent) {
+        const labelPos = new THREE.Vector3(Math.sin(angle) * manRadius * 1.12, precY, Math.cos(angle) * manRadius * 1.12);
+        const label = _makeTextSprite("28th Mahayuga", { font: '24px Arial', fillStyle: '#FFFFFF' });
+        label.scale.set(0.08, 0.08, 0.08);
+        label.position.copy(labelPos);
+        manvantaraGroup.add(label);
+    }
+}
+
+const manLabel = _makeTextSprite("Vaivasvata Manvantara (7th)", { font: 'Bold 32px Arial', fillStyle: '#00FFFF' });
+manLabel.scale.set(0.12, 0.12, 0.12);
+manLabel.position.set(0, precY, -manRadius * 1.25);
+manvantaraGroup.add(manLabel);
+
+// 26. Kalpa Visualization (14 Manvantaras)
+const kalpaGroup = new THREE.Group();
+helpersGroup.add(kalpaGroup);
+kalpaGroup.visible = false;
+
+const kalpaRadius = precRadius * 1.8;
+const kalpaCurve = new THREE.EllipseCurve(0, 0, kalpaRadius, kalpaRadius, 0, 2 * Math.PI, false, 0);
+const kalpaPts = kalpaCurve.getPoints(140);
+const kalpaGeo = new THREE.BufferGeometry().setFromPoints(kalpaPts.map(p => new THREE.Vector3(p.x, precY, p.y)));
+const kalpaMat = new THREE.LineBasicMaterial({ color: 0xFF00FF, transparent: true, opacity: 0.4 });
+const kalpaRing = new THREE.LineLoop(kalpaGeo, kalpaMat);
+kalpaGroup.add(kalpaRing);
+
+const MANVANTARA_NAMES = [
+    "Svayambhuva", "Svarocisha", "Uttama", "Tamasa", "Raivata", "Caksusha",
+    "Vaivasvata", "Savarni", "Daksa Savarni", "Brahma Savarni",
+    "Dharma Savarni", "Rudra Savarni", "Raucya", "Bhaautya"
+];
+
+for(let i=0; i<14; i++) {
+    const angle = (i / 14) * Math.PI * 2;
+    // Current is 7th (index 6)
+    const isCurrent = (i === 6);
+    
+    const rInner = kalpaRadius * 0.96;
+    const rOuter = kalpaRadius * 1.04;
+    const x1 = Math.sin(angle) * rInner;
+    const z1 = Math.cos(angle) * rInner;
+    const x2 = Math.sin(angle) * rOuter;
+    const z2 = Math.cos(angle) * rOuter;
+    
+    const tickGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, precY, z1), new THREE.Vector3(x2, precY, z2)]);
+    const color = isCurrent ? 0xFFFFFF : 0xFF00FF;
+    const opacity = isCurrent ? 1.0 : 0.3;
+    const tickMat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: opacity });
+    const tick = new THREE.Line(tickGeo, tickMat);
+    kalpaGroup.add(tick);
+    
+    if (isCurrent) {
+        const startAngle = (i / 14) * Math.PI * 2;
+        const endAngle = ((i + 1) / 14) * Math.PI * 2;
+        const midAngle = (startAngle + endAngle) / 2;
+        
+        const labelPos = new THREE.Vector3(Math.sin(midAngle) * kalpaRadius * 1.15, precY, Math.cos(midAngle) * kalpaRadius * 1.15);
+        const label = _makeTextSprite(MANVANTARA_NAMES[i] + " (Current)", { font: 'Bold 24px Arial', fillStyle: '#FFFFFF' });
+        label.scale.set(0.1, 0.1, 0.1);
+        label.position.copy(labelPos);
+        kalpaGroup.add(label);
+        
+        const arcPts = [];
+        const steps = 20;
+        for(let s=0; s<=steps; s++) {
+            const t = startAngle + (s/steps)*(endAngle - startAngle);
+            arcPts.push(new THREE.Vector3(Math.sin(t)*kalpaRadius, precY, Math.cos(t)*kalpaRadius));
+        }
+        const arcGeo = new THREE.BufferGeometry().setFromPoints(arcPts);
+        const arcMat = new THREE.LineBasicMaterial({ color: 0xFFFFFF, linewidth: 3 });
+        const arc = new THREE.Line(arcGeo, arcMat);
+        kalpaGroup.add(arc);
+    }
+}
+
+const kalpaLabel = _makeTextSprite("Shveta Varaha Kalpa", { font: 'Bold 32px Arial', fillStyle: '#FF00FF' });
+kalpaLabel.scale.set(0.15, 0.15, 0.15);
+kalpaLabel.position.set(0, precY, -kalpaRadius * 1.3);
+kalpaGroup.add(kalpaLabel);
+
 
 function updateConstellationLabels() {
     if (!constellationLabels || !constellationLabels.children) return;
@@ -1798,7 +2643,7 @@ function updateRashiLabels() {
         }
     }
 
-    updateList(rashiLabelSprites, 0.25);
+    updateList(rashiLabelSprites, 0.125);
     updateList(nakshatraLabelSprites, 0.11);
     updateList(grahaSprites, 0.20);
 }
@@ -1806,14 +2651,19 @@ function updateRashiLabels() {
 // Hook up UI toggles
 (function () {
     try {
-        if (!document.getElementById('ecliptic_grid')) {
-            const anchor = document.getElementById('rashi_belt');
-            if (anchor && anchor.parentNode) {
-                const div = document.createElement('div');
-                div.innerHTML = '<input type="checkbox" id="ecliptic_grid"' + (eclipticGrid.visible ? ' checked' : '') + '> Ecliptic grid visible';
-                anchor.parentNode.appendChild(div);
-            }
+        const settingsDiv = document.getElementById('settings');
+        if (!settingsDiv) return;
+
+        function addCheckbox(id, text, isChecked) {
+            if (document.getElementById(id)) return;
+            const label = document.createElement('label');
+            label.className = 'container';
+            label.innerHTML = `${text} <input type="checkbox" id="${id}" ${isChecked ? 'checked' : ''}> <span class="checkmark"></span>`;
+            settingsDiv.appendChild(label);
         }
+
+        addCheckbox('ecliptic_grid', 'Ecliptic grid visible', eclipticGrid.visible);
+
         var t = document.getElementById('constellations'); if (t) { constellationGroup.visible = t.checked; t.addEventListener('change', function () { constellationGroup.visible = t.checked; }); }
         var tl = document.getElementById('const_labels'); if (tl) { constellationLabels.visible = tl.checked; tl.addEventListener('change', function () { constellationLabels.visible = tl.checked; }); }
         var rb = document.getElementById('rashi_belt'); if (rb) { rb.checked = false; rashiBeltGroup.visible = rb.checked; rb.addEventListener('change', function () { rashiBeltGroup.visible = rb.checked; }); }
@@ -1824,27 +2674,126 @@ function updateRashiLabels() {
         var cs = document.getElementById('celestial_sphere'); if (cs) { celSphere.visible = cs.checked; cs.addEventListener('change', function () { celSphere.visible = cs.checked; }); }
         
         if (!document.getElementById('western_zodiac')) {
-            const anchor = document.getElementById('rashi_belt');
-            if (anchor && anchor.parentNode) {
-                const div = document.createElement('div');
-                div.innerHTML = '<input type="checkbox" id="western_zodiac"> Western Zodiac';
-                anchor.parentNode.appendChild(div);
-                const div2 = document.createElement('div');
-                div2.innerHTML = 'Ayanamsa: <span id="ayanamsa_val">23.85</span>&deg;<br><input type="range" id="ayanamsa_slider" min="0" max="30" step="0.01" value="23.85" style="width: 100%;">';
-                anchor.parentNode.appendChild(div2);
-                const div3 = document.createElement('div');
-                div3.innerHTML = 'Preset: <select id="ayanamsa_mode" style="color:black; width:100%"><option value="Manual">Manual</option><option value="Lahiri" selected>Lahiri</option><option value="Raman">Raman</option><option value="Fagan-Bradley">Fagan-Bradley</option></select>';
-                anchor.parentNode.appendChild(div3);
-                
-                const div4 = document.createElement('div');
-                div4.innerHTML = '<input type="checkbox" id="grahas_toggle" checked> Show Grahas (Planets)';
-                anchor.parentNode.appendChild(div4);
-            }
+            addCheckbox('western_zodiac', 'Western Zodiac', false);
+
+            const div2 = document.createElement('div');
+            div2.innerHTML = 'Ayanamsa: <span id="ayanamsa_val">23.85</span>&deg;<br><input type="range" id="ayanamsa_slider" min="0" max="30" step="0.01" value="23.85" style="width: 100%;">';
+            settingsDiv.appendChild(div2);
+
+            const div3 = document.createElement('div');
+            div3.innerHTML = 'Preset: <select id="ayanamsa_mode" style="color:black; width:100%"><option value="Manual">Manual</option><option value="Lahiri" selected>Lahiri</option><option value="Raman">Raman</option><option value="Fagan-Bradley">Fagan-Bradley</option></select>';
+            settingsDiv.appendChild(div3);
+            
+            addCheckbox('grahas_toggle', 'Show Grahas (Planets)', true);
+            addCheckbox('swastika_toggle', 'Show Swastika Pattern', false);
+            addCheckbox('sap_labels_toggle', 'Saptarishi Star Names', true);
+            addCheckbox('ayanamsa_toggle', 'Show Ayanamsa', false);
+            addCheckbox('gc_toggle', 'Show Galactic Center', true);
+
+            const div9 = document.createElement('div');
+            div9.innerHTML = 'Yuga Cycle: <select id="yuga_mode" style="color:black; width:100%"><option value="SriYukteswar" selected>Sri Yukteswar (24k yr)</option><option value="Traditional">Traditional (Long Count)</option></select>';
+            settingsDiv.appendChild(div9);
+
+            addCheckbox('manvantara_toggle', 'Show Manvantara', false);
+            addCheckbox('kalpa_toggle', 'Show Kalpa', false);
+            addCheckbox('cinematic_toggle', 'Cinematic Mode', false);
+            addCheckbox('tour_toggle', 'Tour Mode', false);
+            addCheckbox('voyager_toggle', 'Show Voyager 1', true);
+            addCheckbox('andromeda_toggle', 'Show Andromeda (M31)', true);
+            addCheckbox('nearest_stars_toggle', 'Show Nearest Stars (<10ly)', false);
+            addCheckbox('nebula_toggle', 'Show Nebulae', true);
+            addCheckbox('spaceship_mode_toggle', 'Spaceship Mode', false);
         }
         var gt = document.getElementById('grahas_toggle');
         if (gt) {
             grahaGroup.visible = gt.checked;
             gt.addEventListener('change', function() { grahaGroup.visible = gt.checked; });
+        }
+        var st = document.getElementById('swastika_toggle');
+        if (st) {
+            swastikaGroup.visible = st.checked;
+            st.addEventListener('change', function() { swastikaGroup.visible = st.checked; });
+        }
+        var sl = document.getElementById('sap_labels_toggle');
+        if (sl) {
+            saptarishiLabelsGroup.visible = sl.checked;
+            sl.addEventListener('change', function() { saptarishiLabelsGroup.visible = sl.checked; });
+        }
+        var at = document.getElementById('ayanamsa_toggle');
+        if (at) {
+            ayanamsaGroup.visible = at.checked;
+            at.addEventListener('change', function() { ayanamsaGroup.visible = at.checked; updateAyanamsaVisuals(); });
+        }
+        var gct = document.getElementById('gc_toggle');
+        if (gct) {
+            galacticCenterGroup.visible = gct.checked;
+            gct.addEventListener('change', function() { galacticCenterGroup.visible = gct.checked; });
+        }
+        var ym = document.getElementById('yuga_mode');
+        if (ym) {
+            ym.value = yugaMode;
+            ym.addEventListener('change', function() {
+                yugaMode = ym.value;
+                yugaSegments.forEach(seg => {
+                    if (seg.mesh) seg.mesh.visible = (yugaMode === 'SriYukteswar');
+                    if (seg.label) seg.label.visible = (yugaMode === 'SriYukteswar');
+                });
+            });
+        }
+        var mt = document.getElementById('manvantara_toggle');
+        if (mt) {
+            manvantaraGroup.visible = mt.checked;
+            mt.addEventListener('change', function() { manvantaraGroup.visible = mt.checked; });
+        }
+        var kt = document.getElementById('kalpa_toggle');
+        if (kt) {
+            kalpaGroup.visible = kt.checked;
+            kt.addEventListener('change', function() { kalpaGroup.visible = kt.checked; });
+        }
+        var cm = document.getElementById('cinematic_toggle');
+        if (cm) {
+            cm.checked = cinematic_mode;
+            cm.addEventListener('change', function() { cinematic_mode = cm.checked; });
+        }
+        var tm = document.getElementById('tour_toggle');
+        if (tm) {
+            tm.checked = tour_mode;
+            tm.addEventListener('change', function() { 
+                tour_mode = tm.checked; 
+                if (tour_mode) {
+                    last_tour_switch_time = performance.now();
+                    tour_index = 0;
+                    if (bodies[tour_targets[tour_index]]) GoTo(bodies[tour_targets[tour_index]]);
+                }
+            });
+        }
+        var vt = document.getElementById('voyager_toggle');
+        if (vt) {
+            voyagerGroup.visible = vt.checked;
+            vt.addEventListener('change', function() { voyagerGroup.visible = vt.checked; });
+        }
+        var ant = document.getElementById('andromeda_toggle');
+        if (ant) {
+            andromedaGroup.visible = ant.checked;
+            ant.addEventListener('change', function() { andromedaGroup.visible = ant.checked; });
+        }
+        var nst = document.getElementById('nearest_stars_toggle');
+        if (nst) {
+            nearestStarsGroup.visible = nst.checked;
+            nst.addEventListener('change', function() { nearestStarsGroup.visible = nst.checked; });
+        }
+        var nt = document.getElementById('nebula_toggle');
+        if (nt) {
+            nebulaGroup.visible = nt.checked;
+            nt.addEventListener('change', function() { nebulaGroup.visible = nt.checked; });
+        }
+        var smt = document.getElementById('spaceship_mode_toggle');
+        if (smt) {
+            smt.checked = spaceship_mode;
+            smt.addEventListener('change', function() {
+                spaceship_mode = smt.checked;
+                spaceship.visible = spaceship_mode;
+            });
         }
         var wz = document.getElementById('western_zodiac'); 
         if (wz) { 
@@ -2027,12 +2976,35 @@ bodies.universal_asteroid.Orbit.visible = false;
 function hyper() {
     var darkness = occultation(camera.position, new THREE.Vector3);
     var past = target.Position;
-    moons.forEach(moon => moon.SetPos());
-    stars.forEach(stellar => stellar.update());
+    
+    if (yuga_playing) {
+        // Optimization: Only update major bodies (Sun, Planets, Moon)
+        if (bodies.sol && bodies.sol.update) bodies.sol.update();
+        const majors = [
+            bodies.mercury, bodies.venus, bodies.earth, bodies.mars, 
+            bodies.jupiter, bodies.saturn, bodies.uranus, bodies.neptune, 
+            bodies.moon
+        ];
+        majors.forEach(b => { if(b && b.SetPos) b.SetPos(); });
+    } else {
+        moons.forEach(moon => moon.SetPos());
+        stars.forEach(stellar => stellar.update());
+    }
+
     if (bodies.earth && bodies.earth.Position) {
         updateGrahaMarkers();
         earthAxisLine.position.copy(bodies.earth.Position);
+        
+        // Animate Precession
+        const precAngle = -DegToRad(PRECESSION_RATE * J_C);
+        earthAxisLine.rotation.set(-CONSTELLATION_TILT, precAngle, 0, 'YXZ');
+        
+        // Update Local Axis
+        localEarthAxisLine.position.copy(bodies.earth.Position);
+        localEarthAxisLine.rotation.copy(earthAxisLine.rotation);
+
         earthNormalLine.position.copy(bodies.earth.Position);
+        localEarthNormalLine.position.copy(bodies.earth.Position);
         earthTiltArc.position.copy(bodies.earth.Position);
 
         const halfTilt = CONSTELLATION_TILT / 2;
@@ -2041,9 +3013,271 @@ function hyper() {
 
         const d = camera.position.distanceTo(bodies.earth.Position);
         const showAngle = d < 40;
-        earthNormalLine.visible = showAngle;
+        
+        // Visibility Logic
+        // Global lines fade out when very close to avoid clutter, but stay visible longer
+        // Local lines fade in when close
+        const fadeStart = 100;
+        const fadeEnd = 10;
+        let op = 1.0;
+        if (d < fadeStart) op = Math.max(0, (d - fadeEnd) / (fadeStart - fadeEnd));
+        
+        earthNormalLine.material.opacity = op * 0.5;
+        earthNormalLine.visible = op > 0.01;
+        
+        earthAxisLine.material.opacity = Math.max(0.3, op * 0.8); // Keep axis visible but fainter when close
+        earthAxisLine.visible = true;
+
+        // Local Axis Line (Visible when zoomed in)
+        localEarthAxisLine.material.opacity = (1.0 - op) * 0.8;
+        localEarthAxisLine.visible = (1.0 - op) > 0.01;
+
+        // Local Normal Line (Visible when zoomed in)
+        localEarthNormalLine.material.opacity = (1.0 - op) * 0.8;
+        localEarthNormalLine.visible = (1.0 - op) > 0.01;
+
+        // Twinkle Dhruva
+        if (dhruvaMarker) {
+            const time = performance.now() * 0.001;
+            const scale = 1.0 + 0.3 * Math.sin(time * 5);
+            dhruvaMarker.scale.setScalar(scale);
+            dhruvaMarker.material.opacity = 0.85 + 0.15 * Math.cos(time * 3);
+
+            // Twinkle Saptarishi
+            saptarishiStars.forEach((star, i) => {
+                const phase = i * 1.0;
+                const sScale = 1.0 + 0.2 * Math.sin(time * 1.0 + phase);
+                star.scale.setScalar(sScale);
+                star.material.opacity = 0.85 + 0.15 * Math.cos(time * 0.6 + phase);
+            });
+        }
+
+        // Pulse Equinox Markers
+        if (equinoxSolsticeGroup.visible) {
+            const time = performance.now() * 0.001;
+            const scale = 1.2 + 0.3 * Math.sin(time * 2.0);
+            if (vernalMarker) vernalMarker.scale.setScalar(scale);
+            if (autumnalMarker) autumnalMarker.scale.setScalar(scale);
+        }
+
         earthTiltArc.visible = showAngle;
         tiltLabel.visible = showAngle;
+
+        // Update Pole Star Label
+        const currentYear = 2000 + (J_C * 100);
+        const POLE_STARS = [
+            { name: "Polaris (Ursa Minor)", year: 2000 },
+            { name: "Errai (Cepheus)", year: 4000 },
+            { name: "Alderamin (Cepheus)", year: 7500 },
+            { name: "Deneb (Cygnus)", year: 10000 },
+            { name: "Vega (Lyra)", year: 14000 },
+            { name: "Thuban (Draco)", year: -3000 },
+            { name: "Kochab (Ursa Minor)", year: -1000 }
+        ];
+        let closestStar = POLE_STARS[0];
+        let minDiff = Math.abs(currentYear - POLE_STARS[0].year);
+        for(let ps of POLE_STARS) {
+            const diff = Math.abs(currentYear - ps.year);
+            if(diff < minDiff) { minDiff = diff; closestStar = ps; }
+        }
+        
+        // Calculate tip position for label and trail
+        const tipLocal = new THREE.Vector3(0, CONSTELLATION_RADIUS, 0);
+        tipLocal.applyEuler(earthAxisLine.rotation);
+        const tipWorld = tipLocal.clone().add(bodies.earth.Position);
+
+        if (poleStarLabel) {
+            poleStarLabel.position.copy(tipWorld).multiplyScalar(1.02);
+            const labelText = closestStar.name;
+            if (poleStarLabel.userData.lastText !== labelText) {
+                const canvas = document.createElement('canvas');
+                const size = 512; canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                ctx.font = 'Bold 40px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#AAAAFF'; ctx.fillText(labelText, size/2, size/2);
+                const tex = new THREE.Texture(canvas); tex.needsUpdate = true;
+                if (poleStarLabel.material.map) poleStarLabel.material.map.dispose();
+                poleStarLabel.material.map = tex;
+                poleStarLabel.userData.lastText = labelText;
+                poleStarLabel.material.needsUpdate = true;
+            }
+        }
+
+        // Update Great Year Label & Arc
+        if (greatYearLabel && precProgressArc) {
+            greatYearLabel.position.copy(tipWorld).multiplyScalar(1.06); // Slightly above Pole Star label
+            
+            let txt = "";
+            const currentYear = 2000 + (J_C * 100);
+
+            if (yugaMode === 'SriYukteswar') {
+                // Sri Yukteswar Model: 24,000 year cycle
+                // 499 AD is start of Ascending Kali (Bottom of clock)
+                let delta = currentYear - 499;
+                let pos = delta % 24000;
+                if (pos < 0) pos += 24000;
+                
+                let yuga = "";
+                let year = 0;
+                let phase = "";
+                
+                if (pos < 12000) {
+                    phase = "Asc";
+                    if (pos < 1200) { yuga = "Kali"; year = pos; }
+                    else if (pos < 3600) { yuga = "Dwapara"; year = pos - 1200; }
+                    else if (pos < 7200) { yuga = "Treta"; year = pos - 3600; }
+                    else { yuga = "Satya"; year = pos - 7200; }
+                } else {
+                    phase = "Desc";
+                    let dPos = pos - 12000;
+                    if (dPos < 4800) { yuga = "Satya"; year = dPos; }
+                    else if (dPos < 8400) { yuga = "Treta"; year = dPos - 4800; }
+                    else if (dPos < 10800) { yuga = "Dwapara"; year = dPos - 8400; }
+                    else { yuga = "Kali"; year = dPos - 10800; }
+                }
+                txt = `${yuga} ${Math.floor(year + 1)} (${phase})`;
+            } else {
+                // Traditional Model: Kali Yuga started 3102 BCE (-3101)
+                const kYear = currentYear + 3101;
+                txt = `Kali Yuga ${Math.floor(kYear)}`;
+            }
+            
+            if (greatYearLabel.userData.lastText !== txt) {
+                const canvas = document.createElement('canvas');
+                const size = 512; canvas.width = size; canvas.height = size;
+                const ctx = canvas.getContext('2d');
+                ctx.font = 'Bold 40px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#FF00FF'; ctx.fillText(txt, size/2, size/2);
+                const tex = new THREE.Texture(canvas); tex.needsUpdate = true;
+                if (greatYearLabel.material.map) greatYearLabel.material.map.dispose();
+                greatYearLabel.material.map = tex;
+                greatYearLabel.userData.lastText = txt;
+                greatYearLabel.material.needsUpdate = true;
+            }
+
+            const yd = document.getElementById('yuga_display');
+            if (yd) yd.textContent = txt;
+
+            // Update Arc
+            const radius = CONSTELLATION_RADIUS * Math.sin(CONSTELLATION_TILT);
+            const y = CONSTELLATION_RADIUS * Math.cos(CONSTELLATION_TILT);
+            const cycleAngle = -DegToRad(PRECESSION_RATE * J_C) % (Math.PI * 2);
+            const segments = 100;
+            const pos = precProgressArc.geometry.attributes.position.array;
+            for(let i=0; i<=segments; i++) {
+                const t = (i/segments) * cycleAngle;
+                // x = R sin(t), z = R cos(t) matches the axis rotation logic
+                pos[i*3] = radius * Math.sin(t);
+                pos[i*3+1] = y;
+                pos[i*3+2] = radius * Math.cos(t);
+            }
+            precProgressArc.geometry.setDrawRange(0, segments+1);
+            precProgressArc.geometry.attributes.position.needsUpdate = true;
+        }
+
+        // Animate Kalpa (Cosmic Breath)
+        if (kalpaGroup && kalpaGroup.visible) {
+            const time = performance.now() * 0.001;
+            const scale = 1.0 + 0.05 * Math.sin(time * 0.5);
+            kalpaGroup.scale.set(scale, 1, scale);
+        }
+
+        // Animate Nearest Stars
+        if (nearestStarsGroup && nearestStarsGroup.visible) {
+            const time = performance.now() * 0.001;
+            nearestStarsGroup.children.forEach((child, i) => {
+                // We only want to animate the star meshes, not the labels or lines
+                if (child instanceof THREE.Mesh) {
+                    const scaleFactor = 1.0 + 0.1 * Math.sin(time * 0.8 + i); // Slow pulse
+                    child.scale.setScalar(scaleFactor);
+                }
+            });
+        }
+
+        // Animate Nebulae (Rotation and Pulsing)
+        if (nebulaGroup && nebulaGroup.visible) {
+            const time = performance.now() * 0.001;
+            nebulaGroup.children.forEach((nebulaCluster, i) => {
+                nebulaCluster.rotation.y += 0.00005 * (i % 2 === 0 ? 1 : -1); // Slow rotation
+                nebulaCluster.children.forEach((sprite, j) => {
+                    if (sprite.userData.baseScale) {
+                        const scaleFactor = 1.0 + 0.05 * Math.sin(time * 0.5 + i * 0.7 + j * 0.3); // Subtle pulse
+                        sprite.scale.set(sprite.userData.baseScale.x * scaleFactor, sprite.userData.baseScale.y * scaleFactor, sprite.userData.baseScale.z * scaleFactor);
+                    }
+                });
+            });
+        }
+
+        // Animate Nearest Stars
+        if (nearestStarsGroup && nearestStarsGroup.visible) {
+            const time = performance.now() * 0.001;
+            nearestStarsGroup.children.forEach((child, i) => {
+                // We only want to animate the star meshes, not the labels or lines
+                if (child instanceof THREE.Mesh) {
+                    const scaleFactor = 1.0 + 0.1 * Math.sin(time * 0.8 + i); // Slow pulse
+                    child.scale.setScalar(scaleFactor);
+                }
+            });
+        }
+
+        updateVoyager();
+
+        // Update Precession Hand (Great Year Clock)
+        if (precHand) {
+            const precY = CONSTELLATION_RADIUS * Math.cos(CONSTELLATION_TILT);
+            const center = new THREE.Vector3(0, precY, 0);
+            const tip = tipLocal.clone(); // Use the correct precessing pole position
+            const posAttr = precHand.geometry.attributes.position;
+            posAttr.setXYZ(0, center.x, center.y, center.z);
+            posAttr.setXYZ(1, tip.x, tip.y, tip.z);
+            posAttr.needsUpdate = true;
+
+            // Highlight Active Yuga (Only in Sri Yukteswar Mode)
+            if (yugaMode === 'SriYukteswar') {
+                // Calculate angle in standard math convention (0 at +X, CCW)
+                // tip is on the XZ plane at height precY
+                let angle = RadToDeg(Math.atan2(tip.z, tip.x));
+                const normalize = (d) => (d % 360 + 360) % 360;
+                const nAngle = normalize(angle);
+
+                yugaSegments.forEach(seg => {
+                    const nStart = normalize(seg.start);
+                    const nEnd = normalize(seg.end);
+                    let active = false;
+                    // Handle wrapping (e.g. start 300, end 20)
+                    if (nStart <= nEnd) {
+                        active = (nAngle >= nStart && nAngle <= nEnd);
+                    } else {
+                        active = (nAngle >= nStart || nAngle <= nEnd);
+                    }
+
+                    if (active) {
+                        seg.mesh.material.opacity = 1.0;
+                        if (seg.label) { seg.label.visible = false; } // Hide static label to avoid overlap
+                    } else {
+                        seg.mesh.material.opacity = 0.5;
+                        if (seg.label) { seg.label.visible = true; seg.label.material.opacity = 0.8; }
+                    }
+                });
+            }
+        }
+
+        // Update Precession Trail
+        if (precessionTrail) {
+            const pts = precessionTrail.userData.points;
+            // Only add point if moved enough or empty
+            if (pts.length === 0 || pts[pts.length - 1].distanceTo(tipWorld) > CONSTELLATION_RADIUS * 0.005) {
+                pts.push(tipWorld);
+                if (pts.length > 2000) pts.shift();
+                
+                const posAttr = precessionTrail.geometry.attributes.position;
+                for (let i = 0; i < pts.length; i++) {
+                    posAttr.setXYZ(i, pts[i].x, pts[i].y, pts[i].z);
+                }
+                precessionTrail.geometry.setDrawRange(0, pts.length);
+                posAttr.needsUpdate = true;
+            }
+        }
 
         // Update Earth Ecliptic Marker
         earthEcMarker.position.set(bodies.earth.Position.x, 0, bodies.earth.Position.z);
@@ -2120,8 +3354,10 @@ function hyper() {
         eclipticGrid.scale.setScalar(d * 3);
         eclipticGrid.material.uniforms.time.value = performance.now() / 1000;
     }
-    updateCloud()
-    updateSataliteCloud()
+    if (!yuga_playing) {
+        updateCloud();
+        updateSataliteCloud();
+    }
     sataliteCloud.position.copy(bodies.earth.Position)
     if (model != null) {
         model.position.copy(bodies.gonggong1.Position);
@@ -2219,12 +3455,12 @@ function hyper() {
     if (auto_expo == true) {
         if (camera.position.distanceTo(target.Position) > 1000) {
             target_exposure = 0.75;
-            sky.material.color = new THREE.Color(1, 1, 1);
 
         }
         if (camera.position.distanceTo(target.Position) > 5000000) {
-            target_exposure = 1;
-            sky.material.color = new THREE.Color(4, 4, 4);
+            const dist = camera.position.distanceTo(target.Position);
+            const factor = Math.min(1.0, 10000 / dist);
+            target_exposure = 0.2 + 0.8 * Math.sqrt(factor);
 
         }
         if (camera.position.distanceTo(target.Position) < 1000) {
@@ -2234,7 +3470,6 @@ function hyper() {
                 brightness = 0.1 + (separation / 3);
                 amb.intensity = 0.4 * brightness;
             }
-            sky.material.needsUpdate = true
             target_exposure = brightness;
         }
         var exposure = bloomPass.strength + 0.075 * (target_exposure - bloomPass.strength);
@@ -2243,7 +3478,38 @@ function hyper() {
         PointCloud.material.color = new THREE.Color(exposure, exposure, exposure);
         PointCloud.material.needsUpdate = true
     }
-    moons.forEach(moon => moon.SetPosition());
+    moons.forEach(moon => {
+        moon.SetPosition();
+        if (moon.label && labels_visible) {
+            // Hide Earth Barycenter label
+            if (bodies.earth_barycenter && moon === bodies.earth_barycenter) {
+                moon.label.visible = false;
+                return;
+            }
+
+            const d = camera.position.distanceTo(moon.Position);
+            
+            // Default thresholds for Planets (orbiting Sun)
+            let startFade = 5000000; 
+            let endFade = 20000000;
+
+            // For Moons (orbiting Planets)
+            // Treat Earth as a planet for visibility purposes
+            const isEarth = (bodies.earth && moon === bodies.earth);
+            if (moon.parent !== bodies.sol && !isEarth) {
+                startFade = 1000; 
+                endFade = 5000;
+            }
+
+            let op = 1.0;
+            if (d > startFade) {
+                op = Math.max(0, 1.0 - (d - startFade) / (endFade - startFade));
+            }
+            
+            moon.label.visible = op > 0.01;
+            if (moon.label.visible) moon.label.material.opacity = op;
+        }
+    });
     updateConstellationLabels();
 
     document.getElementById("name").innerHTML = info_target.name
@@ -2470,7 +3736,7 @@ function pack() {
             MegaMesh.colors[i] = new THREE.Color("rgb(0, 38, 255)")
         }
         if (tisk[i].Orbit_type === "MBA") {
-            MegaMesh.colors[i] = new THREE.Color("rgb(255, 255, 255)")
+            MegaMesh.colors[i] = new THREE.Color("rgb(255, 222, 173)")
         }
         var mu = 6.67408e-11 * 1.98847e30;
         var coef = ((Math.sqrt((mu) / (Math.pow((149598023000 * tisk[i].a), 3)))));
@@ -2780,6 +4046,55 @@ if (typeof NAKSHATRA_NAMES !== 'undefined') {
     }
 }
 autocomplete(document.getElementById("search"), list);
+
+// Yuga Display UI
+const yugaDisplay = document.createElement('div');
+yugaDisplay.id = 'yuga_display';
+yugaDisplay.style.position = 'absolute';
+yugaDisplay.style.top = '60px';
+yugaDisplay.style.left = '50px';
+yugaDisplay.style.color = '#FFD700';
+yugaDisplay.style.fontFamily = 'Arial, sans-serif';
+yugaDisplay.style.fontSize = '20px';
+yugaDisplay.style.fontWeight = 'bold';
+yugaDisplay.style.textShadow = '2px 2px 4px #000000';
+yugaDisplay.style.zIndex = '999';
+yugaDisplay.style.pointerEvents = 'none';
+document.body.appendChild(yugaDisplay);
+
+// Yuga Play Button
+const yugaPlayBtn = document.createElement('div');
+yugaPlayBtn.id = 'yuga_play_button';
+yugaPlayBtn.textContent = '▶';
+yugaPlayBtn.style.position = 'absolute';
+yugaPlayBtn.style.top = '58px';
+yugaPlayBtn.style.left = '15px';
+yugaPlayBtn.style.color = '#00FF00';
+yugaPlayBtn.style.fontFamily = 'Arial, sans-serif';
+yugaPlayBtn.style.fontSize = '24px';
+yugaPlayBtn.style.fontWeight = 'bold';
+yugaPlayBtn.style.cursor = 'pointer';
+yugaPlayBtn.style.zIndex = '999';
+yugaPlayBtn.style.textShadow = '2px 2px 4px #000000';
+yugaPlayBtn.title = "Play Yuga Cycle (Fast Forward)";
+
+yugaPlayBtn.onclick = function() {
+    yuga_playing = !yuga_playing;
+    if (yuga_playing) {
+        pre_yuga_rate = time_rate;
+        time_rate = 31557600 * 500; // 500 years per second
+        yugaPlayBtn.textContent = '⏸';
+        yugaPlayBtn.style.color = '#FF0000';
+    } else {
+        time_rate = pre_yuga_rate;
+        yugaPlayBtn.textContent = '▶';
+        yugaPlayBtn.style.color = '#00FF00';
+    }
+    const tr = document.getElementById('time_rate');
+    if (tr) tr.innerHTML = Math.floor(time_rate);
+};
+document.body.appendChild(yugaPlayBtn);
+
 animate();
 export { meshes, universal_loader, target, scene, Castable, major_castable, J_S, camera, labels_visible, moons_visible, planets_visible, basisLoader, time_rate, paused, occultation };
 
@@ -2802,7 +4117,12 @@ export { meshes, universal_loader, target, scene, Castable, major_castable, J_S,
         { name: '1 d/s', rate: 86400 },
         { name: '7 d/s', rate: 604800 },
         { name: '30 d/s', rate: 2592000 },
-        { name: '365 d/s', rate: 31557600 }
+        { name: '365 d/s', rate: 31557600 },
+        { name: '10 yr/s', rate: 315576000 },
+        { name: '100 yr/s', rate: 3155760000 },
+        { name: '1000 yr/s', rate: 31557600000 },
+        { name: '5000 yr/s', rate: 157788000000 },
+        { name: '10000 yr/s', rate: 315576000000 }
     ];
 
     function nearestIndexFromRate(r) {

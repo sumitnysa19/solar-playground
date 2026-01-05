@@ -562,6 +562,7 @@ function animate() {
     if (horoscope_tour_mode) {
         controls.enabled = false;
         if (bodies.earth && bodies.earth.Position) {
+            applyVisualEnhancements();
             const now = performance.now();
             if (now - horoscope_tour_last_time > 5000) { // Switch every 5 seconds
                 horoscope_tour_index++;
@@ -629,7 +630,8 @@ function animate() {
     sky.position.copy(camera.position);
     if (sim_run == true) {
         const now = performance.now();
-        if (Math.abs(time_rate) > 86400 && (now - lastHyperTime < 100)) {
+        applyVisualEnhancements();
+        if (Math.abs(time_rate) > 86400 && (now - lastHyperTime < 30)) {
             // Throttle simulation updates at high speeds to save CPU
         } else {
             hyper();
@@ -1168,15 +1170,27 @@ function _makeTextSprite(text, options) {
     const size = (options && options.size) ? options.size : 256;
     canvas.width = size; canvas.height = size;
     const ctx = canvas.getContext('2d');
-    ctx.font = (options && options.font) ? options.font : '28px Arial';
+    const fontStr = (options && options.font) ? options.font : '28px Arial';
+    ctx.font = fontStr;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    if (options && options.stroke) {
-        ctx.strokeStyle = options.strokeColor || 'black';
-        ctx.lineWidth = options.strokeWidth || 4;
-        ctx.strokeText(text, size / 2, size / 2);
-    }
     ctx.fillStyle = (options && options.fillStyle) ? options.fillStyle : 'white';
-    ctx.fillText(text, size / 2, size / 2);
+    
+    const lines = text.split('\n');
+    const fontSizeMatch = fontStr.match(/(\d+)px/);
+    const fontSize = fontSizeMatch ? parseInt(fontSizeMatch[1]) : 28;
+    const lineHeight = fontSize * 1.2;
+    const startY = (size - (lines.length * lineHeight)) / 2 + (lineHeight / 2);
+
+    lines.forEach((line, i) => {
+        const y = startY + i * lineHeight;
+        if (options && options.stroke) {
+            ctx.strokeStyle = options.strokeColor || 'black';
+            ctx.lineWidth = options.strokeWidth || 4;
+            ctx.strokeText(line, size / 2, y);
+        }
+        ctx.fillText(line, size / 2, y);
+    });
+
     const tex = new THREE.Texture(canvas); tex.needsUpdate = true;
     const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true });
     const spr = new THREE.Sprite(mat); spr.scale.set(0.8, 0.8, 0.8);
@@ -1732,6 +1746,23 @@ function updateRashiBelt() {
             linesNak.renderOrder = 1;
             group.add(linesNak);
         }
+        
+        // Pada Ticks (4 quarters per Nakshatra)
+        const padaPositions = [];
+        const padaStep = nakAngle / 4;
+        for (let p = 1; p < 4; p++) {
+            const pAngle = angle + p * padaStep;
+            const cP = Math.cos(pAngle);
+            const sP = Math.sin(pAngle);
+            const tickSize = yOffset * 0.25;
+            padaPositions.push(cP * rProjected, -yOffset, sP * rProjected, cP * rProjected, -yOffset + tickSize, sP * rProjected);
+            padaPositions.push(cP * rProjected, yOffset, sP * rProjected, cP * rProjected, yOffset - tickSize, sP * rProjected);
+        }
+        const gPada = new THREE.BufferGeometry();
+        gPada.setAttribute('position', new THREE.Float32BufferAttribute(padaPositions, 3));
+        const mPada = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.3, depthWrite: false });
+        const linesPada = new THREE.LineSegments(gPada, mPada);
+        group.add(linesPada);
 
         // Nakshatra Label
         const mid = angle + nakAngle * 0.5;
@@ -2485,8 +2516,18 @@ function updateHoroscope() {
     lagnaLine.computeLineDistances();
     horoscopeGroup.add(lagnaLine);
 
-    const lagnaLabel = _makeTextSprite(`Lagna (Asc)\n${siderealAsc.toFixed(1)}°`, { font: 'Bold 32px Arial', fillStyle: '#00FFFF', size: 256 });
-    lagnaLabel.scale.set(0.2, 0.2, 0.2);
+    // Calculate Lagna details
+    const lRashiIndex = Math.floor(siderealAsc / 30);
+    const lRashiName = RASHI_NAMES[lRashiIndex];
+    const lRashiAngle = siderealAsc % 30;
+    const lNakIndex = Math.floor(siderealAsc / (360 / 27));
+    const lNakName = NAKSHATRA_NAMES[lNakIndex];
+    const lPada = Math.floor((siderealAsc % (360 / 27)) / ((360 / 27) / 4)) + 1;
+    const lagnaText = `Lagna (Asc)\n${lRashiName} ${lRashiAngle.toFixed(1)}°\n(${lNakName} - Pada ${lPada})`;
+
+    const lagnaLabel = _makeTextSprite(lagnaText, { font: 'Bold 32px Arial', fillStyle: '#00FFFF', size: 1024 });
+    lagnaLabel.scale.set(0.12, 0.12, 0.12);
+    lagnaLabel.scale.set(0.36, 0.36, 0.36);
     const lagnaLabelPos = lagnaPos.clone().multiplyScalar(0.95); // Slightly inside
     lagnaLabel.position.copy(lagnaLabelPos);
     lagnaLabel.userData.tourName = 'Lagna'; // Tag for tour
@@ -2509,11 +2550,34 @@ function updateHoroscope() {
             let deg = RadToDeg(ang);
             deg = (deg - ayanamsa + 360) % 360;
             
+            // Retrograde Check
+            let isRetro = false;
+            if (!body.userData) body.userData = {};
+            
+            // Persist previous state to avoid flickering on zero-motion frames
+            if (typeof body.userData.isRetro === 'boolean') {
+                isRetro = body.userData.isRetro;
+            }
+
+            if (typeof body.userData.lastHoroscopeLon === 'number') {
+                let diff = deg - body.userData.lastHoroscopeLon;
+                if (diff < -180) diff += 360;
+                if (diff > 180) diff -= 360;
+                
+                // Only update status if there is significant motion (above noise)
+                if (Math.abs(diff) > 1e-10 && time_rate !== 0) {
+                    isRetro = (diff * time_rate < 0);
+                }
+            }
+            body.userData.lastHoroscopeLon = deg;
+            body.userData.isRetro = isRetro;
+
             let name = body.name;
             if (key === 'sol') name = 'Sun';
             if (key === 'moon') name = 'Moon';
             // Capitalize
             name = name.charAt(0).toUpperCase() + name.slice(1);
+            if (isRetro) name += " (R)";
             
             planets.push({ name: name, deg: deg });
         }
@@ -2525,8 +2589,8 @@ function updateHoroscope() {
     let rahuMean = (omega % 360 + 360) % 360;
     let rahuSid = (rahuMean - ayanamsa + 360) % 360;
     let ketuSid = (rahuSid + 180) % 360;
-    planets.push({ name: 'Rahu', deg: rahuSid });
-    planets.push({ name: 'Ketu', deg: ketuSid });
+    planets.push({ name: 'Rahu (R)', deg: rahuSid });
+    planets.push({ name: 'Ketu (R)', deg: ketuSid });
 
     // 4. Send Data to Iframe
     const horoscopeIframe = horoscopeContainer.querySelector('iframe');
@@ -2570,6 +2634,10 @@ function updateHoroscope() {
         else if (p.name === 'Rahu') bodyKey = 'rahu';
         else if (p.name === 'Ketu') bodyKey = 'ketu';
         else bodyKey = p.name.toLowerCase();
+        if (p.name.startsWith('Sun')) bodyKey = 'sol';
+        else if (p.name.startsWith('Rahu')) bodyKey = 'rahu';
+        else if (p.name.startsWith('Ketu')) bodyKey = 'ketu';
+        else bodyKey = p.name.split(' ')[0].toLowerCase();
 
         let position;
         if (bodyKey === 'rahu' && grahaSpheres.length > 0) {
@@ -2614,21 +2682,25 @@ function updateHoroscope() {
         const rashiIndex = Math.floor(b.deg / 30);
         const rashiName = RASHI_NAMES[rashiIndex];
         const rashiAngle = b.deg % 30;
-        const nakshatraIndex = Math.floor(b.deg / (360 / 27));
+        const nakshatraSpan = 360 / 27;
+        const nakshatraIndex = Math.floor(b.deg / nakshatraSpan);
         const nakshatraName = NAKSHATRA_NAMES[nakshatraIndex];
+        const degInNak = b.deg % nakshatraSpan;
+        const pada = Math.floor(degInNak / (nakshatraSpan / 4)) + 1;
 
         // Format the text
-        const labelText = `${rashiName} ${rashiAngle.toFixed(1)}°\n(${nakshatraName})`;
+        const labelText = `${b.name}\n${rashiName} ${rashiAngle.toFixed(1)}°\n(${nakshatraName} - Pada ${pada})`;
 
         // Create and position the text sprite
-        const label = _makeTextSprite(labelText, { font: 'Bold 20px Arial', fillStyle: '#FFFF88', size: 256 });
+        const label = _makeTextSprite(labelText, { font: 'Bold 32px Arial', fillStyle: '#FFFF88', size: 512 });
         label.material.sizeAttenuation = false;
-        label.scale.set(0.16, 0.16, 0.16);
+        // label.scale.set(0.12, 0.12, 0.12);
+        label.scale.set(0.18, 0.18, 0.18);
 
-        const midpoint = new THREE.Vector3().addVectors(origin, b.position).multiplyScalar(0.5);
-        label.position.copy(midpoint);
+        const labelPos = new THREE.Vector3().lerpVectors(origin, intersectionPoint, 0.75);
+        label.position.copy(labelPos);
         horoscopeGroup.add(label);
-        horoscopeTourTargets[b.name] = midpoint.clone();
+        horoscopeTourTargets[b.name] = labelPos.clone();
     });
 }
 
@@ -2643,6 +2715,12 @@ function createNebulaTexture() {
     const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(0.4, 'rgba(255,255,255,0.3)');
+    g.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+    g.addColorStop(0, 'rgba(255,255,255,0.8)');
+    g.addColorStop(0.2, 'rgba(255,255,255,0.4)');
+    g.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+    g.addColorStop(0.8, 'rgba(255,255,255,0.05)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0,0,64,64);
@@ -2659,6 +2737,7 @@ function addNebula(name, ra, dec, distLY, color, sizeLY, count, shape = 'sphere'
         color: color, 
         transparent: true, 
         opacity: 0.2,
+        opacity: 0.1,
         blending: THREE.AdditiveBlending,
         depthWrite: false
     });
@@ -2668,6 +2747,17 @@ function addNebula(name, ra, dec, distLY, color, sizeLY, count, shape = 'sphere'
     
     const rot = new THREE.Euler(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
     
+    // Pre-calculate cloud centers if shape is cloud
+    const cloudCenters = [];
+    if (shape === 'cloud') {
+        const numCenters = 3 + Math.floor(Math.random() * 3); // 3 to 5 blobs
+        for(let k=0; k<numCenters; k++) {
+            cloudCenters.push(new THREE.Vector3(
+                (Math.random()-0.5)*1.5, (Math.random()-0.5)*0.5, (Math.random()-0.5)*1.5
+            ));
+        }
+    }
+
     // Create a cluster of sprites
     for(let i=0; i<count; i++) {
         const sprite = new THREE.Sprite(mat);
@@ -2692,6 +2782,14 @@ function addNebula(name, ra, dec, distLY, color, sizeLY, count, shape = 'sphere'
             x = r * Math.sin(phi) * Math.cos(theta) * 1.5;
             y = r * Math.sin(phi) * Math.sin(theta) * 0.7;
             z = r * Math.cos(phi) * 0.7;
+        } else if (shape === 'cloud') {
+            const center = cloudCenters[i % cloudCenters.length];
+            const r = R * 0.5 * Math.pow(Math.random(), 1/3);
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            x = (center.x * R) + r * Math.sin(phi) * Math.cos(theta);
+            y = (center.y * R) + r * Math.sin(phi) * Math.sin(theta);
+            z = (center.z * R) + r * Math.cos(phi);
         } else {
             // Sphere
             const r = R * Math.pow(Math.random(), 0.5);
@@ -2714,9 +2812,9 @@ function addNebula(name, ra, dec, distLY, color, sizeLY, count, shape = 'sphere'
     
     // Add Label
     const labelText = `${name} (${distLY} ly)`;
-    const label = _makeTextSprite(labelText, { font: 'Bold 32px Arial', fillStyle: '#' + new THREE.Color(color).getHexString(), size: 512 });
+    const label = _makeTextSprite(labelText, { font: '16px Arial', fillStyle: '#' + new THREE.Color(color).getHexString(), size: 512 });
     label.material.sizeAttenuation = false;
-    label.scale.set(0.2, 0.2, 0.2);
+    label.scale.set(0.1, 0.1, 0.1);
     // Position label slightly above the nebula center
     label.position.set(0, sizeLY * LY_UNIT * 0.8, 0);
     group.add(label);
@@ -2741,24 +2839,100 @@ function addNebula(name, ra, dec, distLY, color, sizeLY, count, shape = 'sphere'
     nebulaGroup.add(group);
 }
 
-addNebula("Orion Nebula", 83.8, -5.38, 1344, 0xFF99CC, 150, 20, 'sphere');
-addNebula("Crab Nebula", 83.6, 22.0, 6500, 0x88CCFF, 80, 15, 'ellipsoid');
-addNebula("Eagle Nebula", 274.7, -13.8, 7000, 0xFFCC88, 200, 20, 'sphere');
-addNebula("Lagoon Nebula", 271.0, -24.3, 4100, 0xFF88AA, 180, 18, 'sphere');
-addNebula("Carina Nebula", 161.2, -59.8, 8500, 0xCC88FF, 400, 25, 'sphere');
-addNebula("Helix Nebula", 337.4, -20.8, 650, 0x88FFCC, 25, 10, 'ring');
-addNebula("Trifid Nebula", 270.6, -23.0, 5200, 0xFF99AA, 120, 18, 'sphere');
-addNebula("Ring Nebula", 283.4, 33.0, 2000, 0x88FF88, 20, 10, 'ring');
-addNebula("Dumbbell Nebula", 299.9, 22.7, 1360, 0x88FFFF, 25, 12, 'ellipsoid');
-addNebula("Omega Nebula", 275.2, -16.1, 5500, 0xFF6666, 100, 18, 'ellipsoid');
-addNebula("Rosette Nebula", 98.0, 4.9, 5000, 0xFF4444, 300, 22, 'ring');
-addNebula("Horsehead Nebula", 85.2, -2.4, 1500, 0xCC4444, 40, 12, 'filament');
-addNebula("Veil Nebula", 311.4, 30.7, 2400, 0xAAAAFF, 250, 20, 'filament');
-addNebula("North America Nebula", 314.7, 44.3, 2200, 0xFF5555, 250, 20, 'sphere');
-addNebula("Bubble Nebula", 350.2, 61.2, 7100, 0xFF88FF, 100, 15, 'ring');
-addNebula("Cat's Eye Nebula", 269.5, 66.6, 3300, 0x88FFFF, 20, 10, 'ellipsoid');
-addNebula("Heart Nebula", 38.2, 61.4, 7500, 0xFF4466, 400, 25, 'sphere');
-addNebula("Soul Nebula", 42.8, 60.4, 6500, 0xCC6699, 350, 25, 'sphere');
+var nebulae = [
+    { name: "Orion Nebula", ra: 83.8, dec: -5.4, dist: 1344, color: "rgba(255, 100, 200, 0.8)", scale: 60 },
+    { name: "Crab Nebula", ra: 83.6, dec: 22.0, dist: 6500, color: "rgba(100, 200, 255, 0.8)", scale: 40 },
+    { name: "Eagle Nebula", ra: 274.7, dec: -13.8, dist: 7000, color: "rgba(255, 150, 100, 0.8)", scale: 70 },
+    { name: "Ring Nebula", ra: 283.4, dec: 33.0, dist: 2500, color: "rgba(100, 255, 150, 0.8)", scale: 30 },
+    { name: "Helix Nebula", ra: 337.4, dec: -20.8, dist: 650, color: "rgba(200, 100, 255, 0.8)", scale: 40 },
+    { name: "Carina Nebula", ra: 161.3, dec: -59.9, dist: 8500, color: "rgba(255, 100, 100, 0.8)", scale: 100 },
+    { name: "Lagoon Nebula", ra: 271.0, dec: -24.4, dist: 4100, color: "rgba(255, 100, 200, 0.8)", scale: 80 },
+    { name: "Trifid Nebula", ra: 270.6, dec: -23.0, dist: 5200, color: "rgba(100, 150, 255, 0.8)", scale: 60 },
+    { name: "Dumbbell Nebula", ra: 299.9, dec: 22.7, dist: 1360, color: "rgba(100, 255, 200, 0.8)", scale: 40 },
+    { name: "Omega Nebula", ra: 275.2, dec: -16.1, dist: 5500, color: "rgba(255, 100, 150, 0.8)", scale: 70 },
+    { name: "North America Nebula", ra: 314.8, dec: 44.3, dist: 2590, color: "rgba(255, 50, 50, 0.8)", scale: 90 },
+    { name: "Rosette Nebula", ra: 98.4, dec: 4.9, dist: 5000, color: "rgba(255, 100, 100, 0.8)", scale: 80 },
+    { name: "Veil Nebula", ra: 311.4, dec: 30.7, dist: 2400, color: "rgba(100, 200, 255, 0.6)", scale: 100 },
+    { name: "Cat's Eye Nebula", ra: 269.6, dec: 66.6, dist: 3300, color: "rgba(100, 255, 100, 0.8)", scale: 30 },
+    { name: "California Nebula", ra: 60.8, dec: 36.4, dist: 1000, color: "rgba(255, 80, 80, 0.8)", scale: 80 },
+    { name: "Tarantula Nebula", ra: 84.7, dec: -69.1, dist: 160000, color: "rgba(255, 150, 200, 0.8)", scale: 200 },
+    { name: "Flame Nebula", ra: 85.4, dec: -1.9, dist: 1350, color: "rgba(255, 150, 50, 0.8)", scale: 50 },
+    { name: "Horsehead Nebula", ra: 85.3, dec: -2.5, dist: 1500, color: "rgba(255, 100, 100, 0.8)", scale: 40 },
+    { name: "Cone Nebula", ra: 100.2, dec: 9.9, dist: 2700, color: "rgba(200, 100, 50, 0.8)", scale: 50 },
+    { name: "Owl Nebula", ra: 168.7, dec: 55.0, dist: 2030, color: "rgba(100, 200, 255, 0.8)", scale: 35 },
+    { name: "Saturn Nebula", ra: 316.1, dec: -11.4, dist: 5000, color: "rgba(150, 255, 150, 0.8)", scale: 30 },
+    { name: "Blue Snowball", ra: 351.5, dec: 42.5, dist: 2500, color: "rgba(100, 200, 255, 0.8)", scale: 25 },
+    { name: "Ghost of Jupiter", ra: 156.2, dec: -18.6, dist: 1400, color: "rgba(100, 255, 200, 0.8)", scale: 25 },
+    { name: "Little Dumbbell", ra: 25.6, dec: 51.6, dist: 2500, color: "rgba(255, 100, 150, 0.8)", scale: 30 },
+    { name: "Medusa Nebula", ra: 112.4, dec: 13.2, dist: 1500, color: "rgba(200, 100, 100, 0.8)", scale: 45 },
+    { name: "Pleiades Merope", ra: 56.6, dec: 23.9, dist: 444, color: "rgba(100, 150, 255, 0.6)", scale: 60 },
+    { name: "Running Chicken", ra: 174.0, dec: -62.8, dist: 6500, color: "rgba(255, 100, 150, 0.8)", scale: 70 },
+    { name: "Statue of Liberty", ra: 169.5, dec: -61.2, dist: 9000, color: "rgba(255, 150, 100, 0.8)", scale: 60 },
+    { name: "Fighting Dragons", ra: 254.2, dec: -48.7, dist: 4000, color: "rgba(100, 100, 200, 0.8)", scale: 80 },
+    { name: "Cat's Paw", ra: 259.9, dec: -35.8, dist: 5500, color: "rgba(255, 100, 100, 0.8)", scale: 70 },
+    { name: "Lobster Nebula", ra: 261.0, dec: -34.1, dist: 5900, color: "rgba(255, 200, 100, 0.8)", scale: 70 },
+    { name: "Bug Nebula", ra: 258.1, dec: -37.1, dist: 3400, color: "rgba(200, 200, 255, 0.8)", scale: 30 },
+    { name: "Bubble Nebula", ra: 348.1, dec: 61.2, dist: 7100, color: "rgba(255, 100, 200, 0.8)", scale: 40 },
+    { name: "Cave Nebula", ra: 344.2, dec: 62.5, dist: 2400, color: "rgba(200, 100, 100, 0.8)", scale: 50 },
+    { name: "Cocoon Nebula", ra: 326.9, dec: 47.3, dist: 4000, color: "rgba(255, 150, 150, 0.8)", scale: 35 },
+    { name: "Crescent Nebula", ra: 303.1, dec: 38.4, dist: 5000, color: "rgba(150, 150, 255, 0.8)", scale: 40 },
+    { name: "Elephant's Trunk", ra: 324.4, dec: 57.5, dist: 2400, color: "rgba(200, 150, 100, 0.8)", scale: 80 },
+    { name: "Heart Nebula", ra: 38.3, dec: 61.4, dist: 7500, color: "rgba(255, 50, 50, 0.8)", scale: 90 },
+    { name: "Soul Nebula", ra: 41.3, dec: 60.4, dist: 7500, color: "rgba(255, 100, 100, 0.8)", scale: 80 },
+    { name: "Pacman Nebula", ra: 12.9, dec: 56.6, dist: 9200, color: "rgba(255, 100, 200, 0.8)", scale: 50 },
+    { name: "Wizard Nebula", ra: 342.0, dec: 53.9, dist: 7000, color: "rgba(200, 100, 255, 0.8)", scale: 60 },
+    { name: "Iris Nebula", ra: 315.2, dec: 68.1, dist: 1300, color: "rgba(100, 150, 255, 0.8)", scale: 30 },
+    { name: "Jellyfish Nebula", ra: 94.2, dec: 22.5, dist: 5000, color: "rgba(200, 150, 100, 0.8)", scale: 50 },
+    { name: "Monkey Head", ra: 92.4, dec: 20.3, dist: 6400, color: "rgba(255, 150, 100, 0.8)", scale: 40 },
+    { name: "Seagull Nebula", ra: 106.5, dec: -10.5, dist: 3700, color: "rgba(255, 100, 200, 0.8)", scale: 90 },
+    { name: "Thor's Helmet", ra: 109.6, dec: -13.3, dist: 12000, color: "rgba(100, 200, 255, 0.8)", scale: 50 },
+    { name: "Witch Head", ra: 77.2, dec: -7.2, dist: 900, color: "rgba(100, 100, 200, 0.6)", scale: 70 },
+    { name: "Pencil Nebula", ra: 136.3, dec: -45.9, dist: 800, color: "rgba(150, 150, 255, 0.8)", scale: 20 },
+    { name: "Gum Nebula", ra: 130.0, dec: -40.0, dist: 1400, color: "rgba(255, 100, 100, 0.4)", scale: 300 },
+    { name: "Barnard's Loop", ra: 87.0, dec: -2.0, dist: 1600, color: "rgba(255, 50, 50, 0.4)", scale: 200 },
+    { name: "Eta Carinae", ra: 161.3, dec: -59.7, dist: 7500, color: "rgba(255, 150, 100, 0.8)", scale: 60 },
+    { name: "Sadr Region", ra: 305.6, dec: 40.2, dist: 1800, color: "rgba(255, 100, 100, 0.6)", scale: 100 },
+    { name: "Veil East", ra: 313.5, dec: 30.7, dist: 2400, color: "rgba(100, 200, 255, 0.8)", scale: 40 },
+    { name: "Veil West", ra: 309.0, dec: 30.7, dist: 2400, color: "rgba(255, 150, 150, 0.8)", scale: 40 },
+    { name: "Flaming Star", ra: 79.1, dec: 34.1, dist: 1500, color: "rgba(200, 100, 255, 0.8)", scale: 60 },
+    { name: "Tadpole Nebula", ra: 79.8, dec: 35.3, dist: 12000, color: "rgba(255, 200, 100, 0.8)", scale: 50 },
+    { name: "Spider Nebula", ra: 79.3, dec: 34.9, dist: 10000, color: "rgba(150, 255, 150, 0.8)", scale: 40 },
+    { name: "Skull Nebula", ra: 11.2, dec: -2.5, dist: 1600, color: "rgba(200, 100, 200, 0.8)", scale: 30 },
+    { name: "Eight-Burst", ra: 151.4, dec: -42.1, dist: 2000, color: "rgba(255, 150, 100, 0.8)", scale: 25 },
+    { name: "Box Nebula", ra: 261.5, dec: -3.0, dist: 11000, color: "rgba(100, 200, 255, 0.8)", scale: 20 },
+    { name: "Stingray Nebula", ra: 260.7, dec: -59.2, dist: 18000, color: "rgba(150, 255, 150, 0.8)", scale: 15 },
+    { name: "Red Spider", ra: 286.3, dec: -26.3, dist: 3000, color: "rgba(255, 100, 100, 0.8)", scale: 25 },
+    { name: "Butterfly Nebula", ra: 255.3, dec: -34.5, dist: 3800, color: "rgba(255, 200, 200, 0.8)", scale: 30 },
+    { name: "Twin Jet", ra: 257.1, dec: -6.3, dist: 2100, color: "rgba(200, 200, 255, 0.8)", scale: 25 },
+    { name: "Egg Nebula", ra: 315.1, dec: 30.1, dist: 3000, color: "rgba(200, 200, 255, 0.8)", scale: 20 },
+    { name: "Rotten Egg", ra: 115.2, dec: -14.8, dist: 5000, color: "rgba(255, 255, 100, 0.8)", scale: 20 },
+    { name: "Lemon Slice", ra: 188.5, dec: 74.5, dist: 4500, color: "rgba(255, 255, 100, 0.8)", scale: 15 },
+    { name: "Oyster Nebula", ra: 104.2, dec: 20.8, dist: 5000, color: "rgba(200, 200, 200, 0.8)", scale: 20 },
+    { name: "Spirograph", ra: 79.5, dec: -6.7, dist: 2000, color: "rgba(255, 100, 200, 0.8)", scale: 20 },
+    { name: "Retina Nebula", ra: 226.2, dec: -40.5, dist: 1900, color: "rgba(150, 100, 255, 0.8)", scale: 25 },
+    { name: "Eskimo Nebula", ra: 112.3, dec: 20.9, dist: 2870, color: "rgba(100, 200, 255, 0.8)", scale: 25 },
+    { name: "Ant Nebula", ra: 244.5, dec: -48.4, dist: 8000, color: "rgba(255, 150, 200, 0.8)", scale: 30 },
+    { name: "Hourglass Nebula", ra: 209.9, dec: -67.2, dist: 8000, color: "rgba(255, 150, 100, 0.8)", scale: 25 },
+    { name: "Boomerang Nebula", ra: 191.1, dec: -54.5, dist: 5000, color: "rgba(200, 200, 255, 0.8)", scale: 30 },
+    { name: "Necklace Nebula", ra: 293.6, dec: 25.9, dist: 15000, color: "rgba(100, 255, 100, 0.8)", scale: 20 },
+    { name: "Soap Bubble", ra: 301.3, dec: 38.1, dist: 4000, color: "rgba(200, 200, 255, 0.6)", scale: 30 },
+    { name: "Lower's Nebula", ra: 91.3, dec: 25.8, dist: 3000, color: "rgba(255, 100, 100, 0.6)", scale: 40 },
+    { name: "Fishhead Nebula", ra: 28.7, dec: 61.5, dist: 6000, color: "rgba(255, 150, 100, 0.8)", scale: 40 },
+    { name: "Gamma Cygni", ra: 305.6, dec: 40.3, dist: 1800, color: "rgba(255, 200, 100, 0.6)", scale: 80 },
+    { name: "Tulip Nebula", ra: 299.1, dec: 35.3, dist: 6000, color: "rgba(255, 100, 150, 0.8)", scale: 30 },
+    { name: "Pelican Nebula", ra: 312.5, dec: 44.5, dist: 1800, color: "rgba(200, 200, 200, 0.8)", scale: 60 },
+    { name: "Kepler's SNR", ra: 262.6, dec: -21.5, dist: 20000, color: "rgba(255, 100, 100, 0.8)", scale: 30 },
+    { name: "Tycho's SNR", ra: 6.4, dec: 64.1, dist: 9000, color: "rgba(255, 150, 150, 0.8)", scale: 30 },
+    { name: "SN 1006", ra: 225.7, dec: -41.9, dist: 7200, color: "rgba(150, 150, 255, 0.6)", scale: 50 },
+    { name: "RCW 86", ra: 220.0, dec: -62.5, dist: 8000, color: "rgba(200, 150, 255, 0.8)", scale: 40 },
+    { name: "Vela SNR", ra: 128.8, dec: -45.0, dist: 800, color: "rgba(100, 150, 255, 0.4)", scale: 250 },
+    { name: "Cygnus Loop", ra: 311.5, dec: 30.7, dist: 2500, color: "rgba(150, 200, 255, 0.6)", scale: 120 }
+];
+
+nebulae.forEach(function(n) {
+    var color = new THREE.Color(n.color.replace(/rgba?\((\d+),\s*(\d+),\s*(\d+).*/, "rgb($1,$2,$3)"));
+    addNebula(n.name, n.ra, n.dec, n.dist, color, n.scale, 64, 'cloud');
+});
 
 // 20. Precession Cone
 const precessionGroup = new THREE.Group();
@@ -3640,6 +3814,8 @@ function hyper() {
             const time = performance.now() * 0.001;
             nebulaGroup.children.forEach((nebulaCluster, i) => {
                 nebulaCluster.rotation.y += 0.00005 * (i % 2 === 0 ? 1 : -1); // Slow rotation
+                nebulaCluster.rotation.y += 0.0002 * (i % 2 === 0 ? 1 : -1); // Faster rotation
+                nebulaCluster.rotation.z += 0.0001 * (i % 3 === 0 ? 1 : -1); // Add Z rotation
                 nebulaCluster.children.forEach((sprite, j) => {
                     if (sprite.userData.baseScale) {
                         const scaleFactor = 1.0 + 0.05 * Math.sin(time * 0.5 + i * 0.7 + j * 0.3); // Subtle pulse
@@ -4073,12 +4249,12 @@ function assign2(object) {
         canvas.width = size * 2;
         canvas.height = size;
         var context = canvas.getContext('2d');
-        context.font = "Bold " + fontsize + "px " + "Arial";
-        context.strokeStyle = "rgb(255,255,255)";
+        context.font = fontsize + "px Arial";
+        //context.strokeStyle = "rgb(255,255,255)";
         context.textAlign = 'center';
-        context.lineWidth = 4;
+        //context.lineWidth = 4;
 
-        context.fillStyle = "rgb(255,255,255)";
+        context.fillStyle = "rgb(100, 200, 255)";
         context.fillText(message, size / 1, size / 2);
 
         var texture = new THREE.Texture(canvas);
@@ -4095,10 +4271,12 @@ function assign2(object) {
     if (tisk[object - 1].Name != null) {
         bodies.universal_asteroid.name = tisk[object - 1].Name
         bodies.universal_asteroid.label.material = makeTextSprite(tisk[object - 1].Name, 20);
+        bodies.universal_asteroid.label.scale.set(0.3, 0.3, 0.3);
     }
     else {
         bodies.universal_asteroid.name = tisk[object - 1].Principal_desig
         bodies.universal_asteroid.label.material = makeTextSprite(tisk[object - 1].Principal_desig, 20);
+        bodies.universal_asteroid.label.scale.set(0.3, 0.3, 0.3);
     }
     bodies.universal_asteroid.Data[0] = tisk[object - 1].e
     bodies.universal_asteroid.Data[2] = tisk[object - 1].i
@@ -4109,6 +4287,21 @@ function assign2(object) {
     bodies.universal_asteroid.SetUp();
     GoTo(bodies.universal_asteroid)
 }
+
+function _updateTextSprite(sprite, text, options) {
+    const canvas = document.createElement('canvas');
+    const size = (options && options.size) ? options.size : 256;
+    canvas.width = size; canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.font = (options && options.font) ? options.font : '28px Arial';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = (options && options.fillStyle) ? options.fillStyle : 'white';
+    ctx.fillText(text, size / 2, size / 2);
+    const tex = new THREE.Texture(canvas); tex.needsUpdate = true;
+    if (sprite.material.map) sprite.material.map.dispose();
+    sprite.material.map = tex;
+}
+
 function GoTo(object) {
     if (object !== dummyNakshatra) {
         nakshatraSelectionRing.visible = false;
@@ -4239,6 +4432,46 @@ function pointer(shape) {
     return new THREE.Points(shape, PointMaterial);
 }
 // Time rate controls (slider + unit + reverse)
+
+var visualStylesApplied = false;
+function applyVisualEnhancements() {
+    if (visualStylesApplied) return;
+    
+    // Style Moons & Planets
+    moons.forEach(m => {
+        // Orbits: Smoother, transparent
+        if (m.Orbit && m.Orbit.material) {
+            m.Orbit.material.transparent = true;
+            m.Orbit.material.opacity = 0.3;
+            m.Orbit.material.depthWrite = false;
+        }
+        
+        // Labels: Thinner font, colored
+        if (m.label) {
+            let color = '#DDDDDD'; 
+            const gData = GRAHA_DATA.find(g => g.key === m.name.toLowerCase() || g.name.toLowerCase() === m.name.toLowerCase());
+            if (gData) color = gData.color;
+            
+            const canvas = document.createElement('canvas');
+            const size = 512; 
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.font = '96px Arial'; // Thinner (no Bold)
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = color;
+            const displayName = m.name.charAt(0).toUpperCase() + m.name.slice(1);
+            ctx.fillText(displayName, size/2, size/2);
+            
+            const tex = new THREE.Texture(canvas);
+            tex.needsUpdate = true;
+            if (m.label.material.map) m.label.material.map.dispose();
+            m.label.material.map = tex;
+            m.label.scale.set(0.3, 0.3, 0.3);
+        }
+    });
+    visualStylesApplied = true;
+}
+
 function _formatTimeRateDisplay(rate) {
     const abs = Math.abs(rate);
     const sign = rate < 0 ? '-' : '';
